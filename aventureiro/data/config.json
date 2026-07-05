@@ -1,0 +1,22 @@
+{
+  "_comment": "Todo valor de balanceamento do jogo vive aqui, nao em #define no C (ver Pacote 0 / secao 5.2 do handover). Mudar dificuldade e so editar este arquivo, sem recompilar.",
+
+  "grid_size": 8,
+  "_comment_grid_size": "Lado do labirinto quadrado da nave (8x8, igual ao original). O gerador (map.c) garante conectividade total a partir da Sala de Teleporte.",
+
+  "jogador": {
+    "_comment": "Estado inicial do jogador ao nascer na Sala de Teleporte.",
+    "vida_inicial": 20,
+    "energia_inicial": 100,
+    "dinheiro_inicial": 0
+  },
+
+  "chances_percentual": {
+    "_comment": "Probabilidades (0-100) usadas pelo gerador de mapa e por combat.c durante a exploracao.",
+    "tripulante_na_sala": 60,
+    "item_na_sala": 30,
+    "sala_escura": 20,
+    "acidente_no_escuro": 25,
+    "porta_extra_labirinto": 15
+  }
+}

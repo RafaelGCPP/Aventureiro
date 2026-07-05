@@ -1,0 +1,15 @@
+{
+  "_comment": "Armas do jogo (equivalente a linhas REM 9310-9400 do original). dano_maximo e o teto do dano por acerto (o dano real e sorteado entre 1 e dano_maximo); chance_acerto_percentual e a probabilidade de o ataque acertar; custo_energia e quanto de energia o disparo consome (0 = arma branca/sem custo).",
+  "armas": [
+    { "id": 0, "nome": "Dardos",           "dano_maximo": 2,  "chance_acerto_percentual": 25, "custo_energia": 0 },
+    { "id": 1, "nome": "Bumerangue",       "dano_maximo": 1,  "chance_acerto_percentual": 50, "custo_energia": 0 },
+    { "id": 2, "nome": "Pistola Laser",    "dano_maximo": 4,  "chance_acerto_percentual": 60, "custo_energia": 12 },
+    { "id": 3, "nome": "Rifle Phaser",     "dano_maximo": 5,  "chance_acerto_percentual": 70, "custo_energia": 17 },
+    { "id": 4, "nome": "Arpão Iônico",     "dano_maximo": 8,  "chance_acerto_percentual": 50, "custo_energia": 20 },
+    { "id": 5, "nome": "Revólver Sônico",  "dano_maximo": 20, "chance_acerto_percentual": 40, "custo_energia": 10 },
+    { "id": 6, "nome": "Sabre Iônico",     "dano_maximo": 4,  "chance_acerto_percentual": 40, "custo_energia": 8 },
+    { "id": 7, "nome": "Pistola Fotônica", "dano_maximo": 4,  "chance_acerto_percentual": 45, "custo_energia": 8 },
+    { "id": 8, "nome": "Bisturi Laser",    "dano_maximo": 5,  "chance_acerto_percentual": 85, "custo_energia": 5 },
+    { "id": 9, "nome": "Espada Laser",     "dano_maximo": 5,  "chance_acerto_percentual": 35, "custo_energia": 9 }
+  ]
+}

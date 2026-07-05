@@ -1,0 +1,17 @@
+{
+  "_comment": "Tipos de sala da nave. 'id' e o indice usado pelo gerador de mapa (map.c). A sala com \"teleporte\": true e especial: e sempre a sala inicial/final do jogador (equivalente a linha REM 9110-9220 do original).",
+  "salas": [
+    { "id": 0, "nome": "Cela de Detenção" },
+    { "id": 1, "nome": "Depósito de Armas" },
+    { "id": 2, "nome": "Enfermaria" },
+    { "id": 3, "nome": "Sala do Pessoal" },
+    { "id": 4, "nome": "Oficina" },
+    { "id": 5, "nome": "Controle Auxiliar" },
+    { "id": 6, "nome": "Sala do Gerador" },
+    { "id": 7, "nome": "Armazém" },
+    { "id": 8, "nome": "Refeitório" },
+    { "id": 9, "nome": "Depósito de Lixo" },
+    { "id": 10, "nome": "Controle Central" },
+    { "id": 11, "nome": "Sala de Teleporte", "teleporte": true }
+  ]
+}
