@@ -24,6 +24,9 @@ void game_tela_titulo(void) {
     ui_log("6 Usar medicamentos  7 Situacao           8 Examinar a sala");
     ui_log("9 Acionar teleporte");
     ui_log(" ");
+    ui_log("Extra (fora dos 10 comandos originais): M mostra o mapa das salas");
+    ui_log("visitadas, H reexibe esta lista de comandos.");
+    ui_log(" ");
     ui_log("Sempre que voce utilizar algum dos seus equipamentos (lanterna, escudo");
     ui_log("ou arma) havera um gasto nas suas reservas de energia. Para terminar o");
     ui_log("jogo voce deve retornar a Sala de Teleporte e acionar o teleporte (9).");
@@ -154,17 +157,40 @@ static void mostrar_ajuda(void) {
     ui_log("6 Usar medicamentos  7 Situacao           8 Examinar a sala");
     ui_log("9 Acionar teleporte");
     ui_log(" ");
+    ui_log("Extra: M mostra o mapa das salas visitadas, H reexibe esta ajuda.");
+    ui_log(" ");
+    ui_log("(pressione uma tecla para continuar)");
+    ui_aguardar_tecla();
+}
+
+/*
+ * Mapa (m/M, Pacote 14): mostra o grid das salas ja visitadas -
+ * conveniencia de UI fora dos dez comandos originais (o jogo original nao
+ * tinha visualizacao de mapa, secao 7 do handover); nao consome rodada.
+ */
+static void mostrar_mapa(const Jogador *jogador, const Mapa *mapa) {
+    ui_limpar_log();
+    ui_desenhar_mapa(mapa, jogador);
+    ui_log(" ");
     ui_log("(pressione uma tecla para continuar)");
     ui_aguardar_tecla();
 }
 
 FimDeJogo game_loop(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, const Config *cfg) {
+    /* Sala de Teleporte: o jogador "nasce" ali sem passar por
+     * entrar_em_sala, entao marca visitada aqui (Pacote 14). */
+    mapa->celulas[jogador->linha][jogador->coluna].visitada = true;
+
     for (;;) {
         ui_desenhar_hud(jogador, bd);
         int comando = ui_ler_comando();
 
         if (comando == -1) {
             mostrar_ajuda(); /* pseudo-comando: nao consome rodada */
+            continue;
+        }
+        if (comando == -2) {
+            mostrar_mapa(jogador, mapa); /* pseudo-comando: nao consome rodada */
             continue;
         }
 
@@ -218,6 +244,22 @@ FimDeJogo game_loop(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, const C
 
         narrar(&res);
         ui_desenhar_hud(jogador, bd);
+
+        /*
+         * Perseguicao (Pacote 13): um tripulante fugiu com sucesso da sala
+         * nesta rodada (linha 6831 do original: "QUER SEGUI-LO (S/N)?").
+         * Ele ja foi relocado pra sala de destino independente da escolha
+         * - so perguntamos se o jogador quer ir atras.
+         */
+        if (res.tripulante_fugiu) {
+            ui_log("Quer segui-lo (S/N)?");
+            int escolha = ler_opcao("SN");
+            if (escolha == 0) {
+                Resultado perseguicao = combate_seguir_tripulante_fugido(jogador, mapa, bd, res.trilha_fuga, res.trilha_fuga_tamanho);
+                narrar(&perseguicao);
+                ui_desenhar_hud(jogador, bd);
+            }
+        }
 
         if (res.jogador_morreu) {
             return JOGO_FIM_MORTE;

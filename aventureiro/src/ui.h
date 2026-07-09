@@ -41,10 +41,11 @@ void ui_desenhar_hud(const Jogador *jogador, const BaseDeDados *bd);
 /*
  * Bloqueia ate o jogador apertar uma tecla numerica de 0 a 9 (os dez
  * comandos, secao 2.2 do handover) e retorna esse digito como int. Tambem
- * aceita 'h'/'H', retornando -1, como pseudo-comando de ajuda (Pacote 11)
- * que o chamador deve tratar sem consumir uma rodada. Teclas fora desse
- * conjunto sao ignoradas silenciosamente - o loop interno so retorna
- * quando le algo valido.
+ * aceita 'h'/'H' (retorna -1, pseudo-comando de ajuda, Pacote 11) e
+ * 'm'/'M' (retorna -2, pseudo-comando de mapa, Pacote 14), que o chamador
+ * deve tratar sem consumir uma rodada. Teclas fora desse conjunto sao
+ * ignoradas silenciosamente - o loop interno so retorna quando le algo
+ * valido.
  */
 int ui_ler_comando(void);
 
@@ -61,5 +62,16 @@ int ui_aguardar_tecla(void);
  * ponto do jogo que pede um valor numerico livre em vez de uma tecla.
  */
 int ui_ler_numero(void);
+
+/*
+ * Desenha o mapa conhecido (Pacote 14): grid_size x grid_size, marcando a
+ * posicao atual do jogador ('@'), o pad da Sala de Teleporte ('o' - sempre
+ * visivel, e' onde a partida comeca e termina), salas ja visitadas ('.')
+ * e as portas descobertas entre salas onde pelo menos um dos dois lados
+ * ja foi visitado - nunca revela tipo/conteudo de sala nao visitada, nem
+ * portas de salas totalmente inexploradas. Escreve no log via ui_log (nao
+ * limpa o log nem espera tecla - isso e' responsabilidade de quem chama).
+ */
+void ui_desenhar_mapa(const Mapa *mapa, const Jogador *jogador);
 
 #endif

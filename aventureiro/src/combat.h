@@ -8,6 +8,14 @@
 #define MAX_MENSAGENS_RESULTADO 8
 #define MAX_TAMANHO_MENSAGEM 96
 
+/* Tamanho maximo do caminho aleatorio que um tripulante em fuga percorre
+ * ate achar uma sala sem outro tripulante (linha 6824-6830 do original,
+ * Pacote 13) - e' uma salvaguarda nossa (o original nao tem limite
+ * explicito), generosa o bastante pro grid 8x8 default; se estourar
+ * (bem raro), o tripulante so desaparece, igual ao comportamento
+ * simplificado anterior. */
+#define MAX_TRILHA_FUGA 64
+
 /*
  * Buffer de mensagens narrativas produzidas por um comando, no lugar de
  * imprimir direto na tela - isso e' responsabilidade da camada de UI
@@ -15,13 +23,21 @@
  * de fato aconteceu (ex.: false se tentou mover para uma direcao sem
  * porta); 'jogador_morreu' sinaliza vida chegando a zero (por acidente no
  * escuro nesta fase - combate propriamente dito e' o Pacote 6b) para quem
- * orquestra o jogo (Pacote 8) decidir o que fazer.
+ * orquestra o jogo (Pacote 8) decidir o que fazer. 'tripulante_fugiu' e
+ * 'trilha_fuga'/'trilha_fuga_tamanho' (Pacote 13) sinalizam que um
+ * tripulante fugiu com sucesso da sala nesta rodada (linha 6810 do
+ * original) - quem orquestra o jogo deve perguntar "quer segui-lo (S/N)?"
+ * e, se sim, chamar combate_seguir_tripulante_fugido com esse caminho.
  */
 typedef struct {
     char mensagens[MAX_MENSAGENS_RESULTADO][MAX_TAMANHO_MENSAGEM];
     int num_mensagens;
     bool sucesso;
     bool jogador_morreu;
+
+    bool tripulante_fugiu;
+    int trilha_fuga[MAX_TRILHA_FUGA];
+    int trilha_fuga_tamanho;
 } Resultado;
 
 /*
@@ -101,19 +117,18 @@ Resultado comando_acionar_teleporte(Jogador *jogador, const Mapa *mapa);
  * Falha (sucesso = false) sem ninguem na sala ou sem energia para a arma.
  * Ao matar, sorteia loot (arma do tripulante, energia, e - so se
  * agressivo, linha 1800 - chance de medicamento/dinheiro). Se o
- * tripulante sobreviver ao ataque (errou ou nao matou), reage: agressivo
- * contra-ataca (linha 6505), nao-agressivo entra em panico e foge (linha
- * 6800).
+ * tripulante sobreviver ao ataque (errou ou nao matou), reage (linha
+ * 6505/6507, Pacote 13): so tripulantes agressivos avaliam fugir (energia
+ * propria baixa ou 10% de sorte); nao-agressivos sempre contra-atacam.
  */
 Resultado comando_atacar(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd);
 
 /*
  * Fugir (linha 2010): falha sem tripulante na sala. 10% de chance de cair
  * na tentativa (linha 2040), o que da uma reacao gratis ao tripulante.
- * Tendo sucesso, foge para uma sala vizinha aleatoria entre as conectadas
- * - versao simplificada, decisao do Pacote 0: sem o tripulante perseguir
- * pra sala nova (linhas 6800-6920 do original tinham essa perseguicao
- * multi-sala, removida de proposito).
+ * Tendo sucesso, foge para uma sala vizinha aleatoria entre as conectadas;
+ * o tripulante de quem fugiu pode vir atras (linha 2120, Pacote 13): 50%
+ * de chance, e so se a sala de destino ainda nao tiver outro tripulante.
  */
 Resultado comando_fugir(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd);
 
@@ -134,5 +149,19 @@ typedef enum {
  * do tripulante, igual ao ataque.
  */
 Resultado comando_comunicar(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, AcaoComunicar acao, int valor_oferecido);
+
+/*
+ * Persegue um tripulante que fugiu com sucesso (linhas 6837-6852 do
+ * original, Pacote 13) - so deve ser chamada quando um Resultado anterior
+ * veio com 'tripulante_fugiu' true, passando 'trilha_fuga'/
+ * 'trilha_fuga_tamanho' dele. O tripulante ja foi relocado pra sala de
+ * destino independente do jogador seguir (isso acontece dentro do proprio
+ * combate ao fugir); aqui so' se narra o jogador andando pelo mesmo
+ * caminho, com 10% de chance por passo (a partir do segundo) de perder o
+ * rastro (linha 6839) - nesse caso o jogador para onde estava e so' narra
+ * a sala atual. Se completar o caminho, chega na sala do tripulante e o
+ * combate continua la.
+ */
+Resultado combate_seguir_tripulante_fugido(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, const int *trilha_fuga, int trilha_fuga_tamanho);
 
 #endif

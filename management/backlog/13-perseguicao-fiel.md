@@ -43,3 +43,11 @@ Jogando manualmente: um tripulante agressivo com pouca energia foge em vez de at
 não-agressivo nunca foge, sempre revida; ao fugir de uma sala com tripulante, ele pode reaparecer
 na sala de destino; ao atacar um tripulante que foge, o jogo oferece perseguir e, seguindo, o
 combate continua na sala onde ele parou.
+
+**Confirmado.** Verificado com `pexpect` dirigindo o binário (várias seeds): um tripulante
+agressivo ("Engenheiro de Bordo", "Oficial de Comunicações") entrou em pânico e fugiu após ser
+atingido, o jogo perguntou "Quer segui-lo (S/N)?", a perseguição narrou cada passo do rastro
+(incluindo trilhas de vários saltos, ex. Norte/Oeste/Leste/Oeste/Leste/Sul/Norte/Oeste) e o combate
+continuou normalmente na sala de destino, com o tripulante presente e reagindo aos ataques
+seguintes. Build limpo e `tests/smoke_test.py` sem crash em múltiplas rodadas (720+ comandos
+aleatórios, incluindo os novos ramos de fuga/perseguição).

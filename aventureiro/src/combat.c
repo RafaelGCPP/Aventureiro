@@ -22,6 +22,21 @@
  * ("IF RND>.33 THEN GOTO 6810" - 67% foge, 33% cai na tentativa). */
 #define CHANCE_PANICO_ESCAPAR 67
 
+/* Chance (%) de um tripulante agressivo decidir fugir so por sorte, mesmo
+ * com energia suficiente pra arma, linha 6507 ("RND<.1"). A outra metade
+ * da condicao (energia propria menor que o custo da arma) e' avaliada
+ * direto em reacao_tripulante_apos_turno. */
+#define CHANCE_FUGA_POR_SORTE 10
+
+/* Chance (%) por passo (a partir do segundo) de perder o rastro ao
+ * perseguir um tripulante fugido, linha 6839 ("RND<.1"). */
+#define CHANCE_PERSEGUICAO_PERDER 10
+
+/* Chance (%) de o tripulante de quem o jogador fugiu vir atras dele pra
+ * sala de destino, linha 2120 ("RND<.5" - simetrico, 50/50). So' se aplica
+ * se a sala de destino ainda nao tiver outro tripulante. */
+#define CHANCE_TRIPULANTE_SEGUIR_FUGA_JOGADOR 50
+
 /* Chance (%) de sortear um medicamento extra ao saquear o corpo de um
  * tripulante agressivo morto, linha 1830 do original ("IF RND>.2 THEN
  * GOTO 1860" - 20% ganha medicamento). */
@@ -151,9 +166,11 @@ void combat_narrar_sala_atual(const Jogador *jogador, const Mapa *mapa, const Ba
 }
 
 /* Entrar em sala nova (linha 6002): narra tipo de sala, saidas e presenca
- * de tripulante; drena energia do escudo se ligado (linha 6115 + 3600). */
-static void entrar_em_sala(Jogador *jogador, const Mapa *mapa, const BaseDeDados *bd, Resultado *r) {
+ * de tripulante; drena energia do escudo se ligado (linha 6115 + 3600);
+ * marca a sala como visitada (Pacote 14, so' usado pelo mapa ASCII). */
+static void entrar_em_sala(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, Resultado *r) {
     log_msg(r, "Voce entrou numa nova sala.");
+    mapa->celulas[jogador->linha][jogador->coluna].visitada = true;
     narrar_sala(mapa, bd, jogador->linha, jogador->coluna, r);
 
     if (jogador->escudo_ligado) {
@@ -178,34 +195,101 @@ static void desligar_escudo_se_sem_energia(Jogador *jogador, Resultado *r) {
 }
 
 /*
- * Reacao do tripulante quando sobrevive ao turno do jogador (ataque que
- * errou ou nao matou, fuga que caiu, ou comunicacao que fracassou) -
- * equivalente a sub-rotina compartilhada da linha 6505 (GOTO 6500),
- * chamada de varios pontos no original. Agressivo contra-ataca (linha
- * 6510-6650, com reducao de dano pelo escudo, linha 6580-6610);
- * nao-agressivo entra em panico e foge (linha 6800-6810) - versao
- * simplificada, decisao do Pacote 0: o tripulante so desaparece da sala,
- * sem perseguicao multi-sala.
+ * Executa a fuga bem-sucedida de um tripulante (linhas 6820-6860 do
+ * original, Pacote 13): sorteia um caminho aleatorio de celulas
+ * conectadas a partir de (linha, coluna) ate achar uma sem outro
+ * tripulante, e relocaliza o registro dele (vida/energia atuais) pra la -
+ * ele nao "desaparece", continua existindo em outra sala do mapa, como no
+ * original. A relocacao acontece independente do jogador escolher segui-lo
+ * depois (o original tambem faz isso incondicionalmente, GOSUB 6859 nos
+ * dois ramos S/N da pergunta). O caminho sorteado fica em 'r' pra quem
+ * orquestra o jogo (game.c) oferecer a perseguicao.
  */
-static void reacao_tripulante_apos_turno(Jogador *jogador, Celula *celula, const BaseDeDados *bd, Resultado *r) {
+static void tripulante_fugir_para_outra_sala(Mapa *mapa, int linha, int coluna, Resultado *r) {
+    Celula *origem = &mapa->celulas[linha][coluna];
+
+    int trilha[MAX_TRILHA_FUGA];
+    int tamanho = 0;
+    int l = linha;
+    int c = coluna;
+    bool achou_destino = false;
+
+    while (tamanho < MAX_TRILHA_FUGA) {
+        int direcoes_disponiveis[NUM_DIRECOES];
+        int n = 0;
+        for (int d = 0; d < NUM_DIRECOES; d++) {
+            if (mapa->celulas[l][c].conectada[d]) {
+                direcoes_disponiveis[n++] = d;
+            }
+        }
+        int d = direcoes_disponiveis[sorteio_intervalo(0, n - 1)];
+        trilha[tamanho++] = d;
+        l += DELTA_LINHA[d];
+        c += DELTA_COLUNA[d];
+        if (!mapa->celulas[l][c].tem_tripulante) {
+            achou_destino = true;
+            break;
+        }
+    }
+
+    if (!achou_destino) {
+        origem->tem_tripulante = false;
+        return;
+    }
+
+    Celula *destino = &mapa->celulas[l][c];
+    destino->tem_tripulante = true;
+    destino->id_tripulante = origem->id_tripulante;
+    destino->tripulante_vivo = true;
+    destino->tripulante_vida_atual = origem->tripulante_vida_atual;
+    destino->tripulante_energia_atual = origem->tripulante_energia_atual;
+    origem->tem_tripulante = false;
+
+    r->tripulante_fugiu = true;
+    memcpy(r->trilha_fuga, trilha, sizeof(int) * (size_t)tamanho);
+    r->trilha_fuga_tamanho = tamanho;
+}
+
+/*
+ * Reacao do tripulante quando sobrevive ao turno do jogador (ataque que
+ * errou ou nao matou, fuga que caiu, comunicacao que fracassou, ou uso de
+ * medicamento bem-sucedido) - equivalente a sub-rotina compartilhada da
+ * linha 6505 (GOTO 6500), chamada de varios pontos no original.
+ *
+ * Decisao de fugir vs contra-atacar, linha 6507: "IF (ME<MP OR RND<.1) AND
+ * MI THEN GOTO 6800" - so' tripulantes agressivos (MI=1) avaliam fugir,
+ * quando a propria energia (ME) e' menor que o custo da arma (MP) ou por
+ * 10% de sorte; nao-agressivos (MI=0) sempre contra-atacam, ja que a
+ * condicao "AND MI" nunca e' verdadeira pra eles. Isso e' o oposto do que
+ * uma leitura ingenua do campo 'agressivo' sugere - a inversao foi
+ * descoberta no Pacote 10 e corrigida aqui no Pacote 13, junto com a
+ * perseguicao (linhas 6800-6860) que antes so fazia o tripulante
+ * desaparecer.
+ */
+static void reacao_tripulante_apos_turno(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, Resultado *r) {
+    Celula *celula = &mapa->celulas[jogador->linha][jogador->coluna];
     if (!celula->tem_tripulante || !celula->tripulante_vivo) {
         return;
     }
     const Tripulante *tripulante = &bd->tripulantes[celula->id_tripulante];
+    const Arma *arma = &bd->armas[tripulante->id_arma];
 
-    if (!tripulante->agressivo) {
+    bool decide_fugir = tripulante->agressivo &&
+        (celula->tripulante_energia_atual < arma->custo_energia || sorteio_chance(CHANCE_FUGA_POR_SORTE));
+
+    if (decide_fugir) {
         log_msg(r, "O %s entra em panico.", tripulante->nome);
         if (!sorteio_chance(CHANCE_PANICO_ESCAPAR)) {
             log_msg(r, "E na tentativa de fugir, cai.");
             return;
         }
         log_msg(r, "E foge.");
-        celula->tem_tripulante = false;
+        tripulante_fugir_para_outra_sala(mapa, jogador->linha, jogador->coluna, r);
         return;
     }
 
-    const Arma *arma = &bd->armas[tripulante->id_arma];
     log_msg(r, "O %s ataca com %s.", tripulante->nome, arma->nome);
+    celula->tripulante_energia_atual -= arma->custo_energia;
 
     if (!sorteio_chance(arma->chance_acerto_percentual)) {
         log_msg(r, "Quase te acerta, mas erra.");
@@ -233,6 +317,27 @@ static void reacao_tripulante_apos_turno(Jogador *jogador, Celula *celula, const
         log_msg(r, "Voce foi mortalmente ferido. O %s roubou-lhe tudo.", tripulante->nome);
         r->jogador_morreu = true;
     }
+}
+
+Resultado combate_seguir_tripulante_fugido(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, const int *trilha_fuga, int trilha_fuga_tamanho) {
+    Resultado r = resultado_vazio();
+
+    for (int i = 0; i < trilha_fuga_tamanho; i++) {
+        if (i > 0 && sorteio_chance(CHANCE_PERSEGUICAO_PERDER)) {
+            log_msg(&r, "Voce o perdeu neste ponto.");
+            break;
+        }
+        int d = trilha_fuga[i];
+        log_msg(&r, "Voce o segue pelo lado %s.", direcao_nome((Direcao)d));
+        jogador->linha += DELTA_LINHA[d];
+        jogador->coluna += DELTA_COLUNA[d];
+    }
+
+    /* Linha 6852 do original: "GOTO 6000" - chega (ou para no meio do
+     * caminho, se perdeu o rastro) e a sala e' narrada como uma entrada
+     * normal, drenando escudo se ligado. */
+    entrar_em_sala(jogador, mapa, bd, &r);
+    return r;
 }
 
 Resultado comando_mover(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, Direcao direcao) {
@@ -299,8 +404,7 @@ Resultado comando_usar_medicamento(Jogador *jogador, Mapa *mapa, const BaseDeDad
 
     if (jogador_usar_medicamento(jogador, cfg->vida_inicial)) {
         log_msg(&r, "Sente-se melhor? Voce agora tem %d pontos de vida.", jogador->vida);
-        Celula *celula = &mapa->celulas[jogador->linha][jogador->coluna];
-        reacao_tripulante_apos_turno(jogador, celula, bd, &r);
+        reacao_tripulante_apos_turno(jogador, mapa, bd, &r);
         return r;
     }
 
@@ -457,7 +561,7 @@ Resultado comando_atacar(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd) {
 
     if (!sorteio_chance(arma->chance_acerto_percentual)) {
         log_msg(&r, "Errou. Ma sorte.");
-        reacao_tripulante_apos_turno(jogador, celula, bd, &r);
+        reacao_tripulante_apos_turno(jogador, mapa, bd, &r);
         return r;
     }
 
@@ -466,7 +570,7 @@ Resultado comando_atacar(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd) {
     celula->tripulante_vida_atual -= dano;
 
     if (celula->tripulante_vida_atual > 0) {
-        reacao_tripulante_apos_turno(jogador, celula, bd, &r);
+        reacao_tripulante_apos_turno(jogador, mapa, bd, &r);
         return r;
     }
 
@@ -511,7 +615,7 @@ Resultado comando_fugir(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd) {
 
     if (!sorteio_chance(CHANCE_FUGIR_SUCESSO)) {
         log_msg(&r, "Voce tenta fugir, mas cai.");
-        reacao_tripulante_apos_turno(jogador, celula, bd, &r);
+        reacao_tripulante_apos_turno(jogador, mapa, bd, &r);
         r.sucesso = false;
         return r;
     }
@@ -529,11 +633,36 @@ Resultado comando_fugir(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd) {
         return r;
     }
 
+    /* Guardado antes de mover, pra poder trazer o mesmo tripulante atras
+     * do jogador (linha 2120-2150) se a sala de destino estiver vazia e a
+     * sorte decidir. */
+    int id_tripulante_fugido = celula->id_tripulante;
+    int vida_tripulante_fugido = celula->tripulante_vida_atual;
+    int energia_tripulante_fugido = celula->tripulante_energia_atual;
+
     int direcao = direcoes_disponiveis[sorteio_intervalo(0, n_disponiveis - 1)];
     log_msg(&r, "Voce fugiu pelo lado %s.", direcao_nome((Direcao)direcao));
 
+    celula->tem_tripulante = false; /* saiu da sala original de qualquer forma */
+
     jogador->linha += DELTA_LINHA[direcao];
     jogador->coluna += DELTA_COLUNA[direcao];
+
+    /*
+     * Perseguicao ao fugir, linha 2120 do original: "IF R$(X,Y,7)<>" " OR
+     * RND<.5 THEN GOTO 2200" - so' NAO te segue se a sala de destino ja
+     * tiver outro tripulante, ou por 50% de sorte; senao ele vem atras
+     * (Pacote 13).
+     */
+    Celula *destino = &mapa->celulas[jogador->linha][jogador->coluna];
+    if (!destino->tem_tripulante && sorteio_chance(CHANCE_TRIPULANTE_SEGUIR_FUGA_JOGADOR)) {
+        destino->tem_tripulante = true;
+        destino->id_tripulante = id_tripulante_fugido;
+        destino->tripulante_vivo = true;
+        destino->tripulante_vida_atual = vida_tripulante_fugido;
+        destino->tripulante_energia_atual = energia_tripulante_fugido;
+        log_msg(&r, "Infelizmente o %s veio atras de voce.", bd->tripulantes[id_tripulante_fugido].nome);
+    }
 
     entrar_em_sala(jogador, mapa, bd, &r);
     return r;
@@ -572,7 +701,7 @@ Resultado comando_comunicar(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd,
             }
             log_msg(&r, "E decide nao aceitar.");
             r.sucesso = false;
-            reacao_tripulante_apos_turno(jogador, celula, bd, &r);
+            reacao_tripulante_apos_turno(jogador, mapa, bd, &r);
             return r;
 
         case COMUNICAR_IRRITAR:
@@ -583,7 +712,7 @@ Resultado comando_comunicar(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd,
             }
             log_msg(&r, "Nao gostou da sua atitude agressiva.");
             r.sucesso = false;
-            reacao_tripulante_apos_turno(jogador, celula, bd, &r);
+            reacao_tripulante_apos_turno(jogador, mapa, bd, &r);
             return r;
 
         case COMUNICAR_AMIGAVEL:
@@ -596,7 +725,7 @@ Resultado comando_comunicar(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd,
             }
             log_msg(&r, "Nao gosta do seu sorriso.");
             r.sucesso = false;
-            reacao_tripulante_apos_turno(jogador, celula, bd, &r);
+            reacao_tripulante_apos_turno(jogador, mapa, bd, &r);
             return r;
     }
 

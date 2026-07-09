@@ -55,8 +55,8 @@ P0 (scaffold) → P1 (dados JSON) → P2 (types/util) → P3 (data_loader)
 | 10 | [backlog/10-polimento.md](backlog/10-polimento.md) | S | P9 | [x] |
 | 11 | [backlog/11-melhorias-jogabilidade.md](backlog/11-melhorias-jogabilidade.md) | S | P10 | [x] |
 | 12 | [backlog/12-fidelidade-formulas.md](backlog/12-fidelidade-formulas.md) | M | P10 | [x] |
-| 13 | [backlog/13-perseguicao-fiel.md](backlog/13-perseguicao-fiel.md) | M | P10 | [ ] |
-| 14 | [backlog/14-mapa-ascii.md](backlog/14-mapa-ascii.md) | S | P10 | [ ] |
+| 13 | [backlog/13-perseguicao-fiel.md](backlog/13-perseguicao-fiel.md) | M | P10 | [x] |
+| 14 | [backlog/14-mapa-ascii.md](backlog/14-mapa-ascii.md) | S | P10 | [x] |
 
 ## Depois do backlog
 

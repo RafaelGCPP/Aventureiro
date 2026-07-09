@@ -17,6 +17,14 @@
 > decisões confirmadas com o usuário no Pacote 10 — não são mais ideias soltas, são os pacotes
 > [13 (perseguição fiel)](backlog/13-perseguicao-fiel.md) e [14 (mapa ASCII)](backlog/14-mapa-ascii.md).
 
-- **Scripts de instalação (Linux e macOS)** — script que verifica se as dependências de build (compilador C, `ncurses`/`pkg-config`, e `pexpect` para `make test`) estão presentes e oferece instalar as que faltarem (via `apt`/`brew`, dependendo do SO), para reduzir o atrito de quem for compilar o jogo pela primeira vez.
+- **Configurar quantidade/densidade de inimigos** — hoje `chances_percentual.tripulante_na_sala`
+  (`data/config.json`) já controla a chance de haver *algum* tripulante por sala, mas não dá pra
+  ajustar a densidade geral de inimigos no mapa além disso (ex.: um modo "mais vazio"/"mais cheio",
+  ou variar a chance por tipo de sala). Pedido do usuário durante o Pacote 13, ao mexer na
+  fuga/perseguição — avaliar se basta expor mais parâmetros em `chances_percentual` ou se vale um
+  campo novo dedicado a densidade.
+> Nota: "Scripts de instalação (Linux e macOS)" que estava aqui já foi implementado —
+> `aventureiro/scripts/install-deps.sh` (checa/instala via `apt`/`dnf`/`pacman`/`brew`, com
+> confirmação antes de rodar qualquer coisa), com instruções por SO no `aventureiro/README.md`.
 
 Guardar mais ideias aqui conforme surgirem durante a implementação dos pacotes atuais.

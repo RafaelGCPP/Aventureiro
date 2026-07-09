@@ -142,6 +142,10 @@ static void povoar_celulas(Mapa *mapa, const Config *cfg, const BaseDeDados *bd)
                 celula->id_tripulante = sorteio_intervalo(0, bd->num_tripulantes - 1);
                 celula->tripulante_vivo = true;
                 celula->tripulante_vida_atual = bd->tripulantes[celula->id_tripulante].vida;
+                /* linha 6002 do original: "ME=INT(RND*150+100)" - energia
+                 * do tripulante, usada em combat.c pra decidir se ele foge
+                 * ou contra-ataca (Pacote 13). */
+                celula->tripulante_energia_atual = sorteio_intervalo(100, 249);
             }
         }
     }

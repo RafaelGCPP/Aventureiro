@@ -30,3 +30,10 @@ conveniência de UI que não deve interferir na fidelidade das regras.
 Jogando manualmente: apertar `M` a qualquer momento do loop principal mostra um mapa textual com as
 salas já visitadas e a posição atual, sem alterar vida/energia/dinheiro/posição do jogador; salas
 nunca visitadas não aparecem com tipo/conteúdo revelado.
+
+**Confirmado.** Verificado com `pexpect`+`pyte` dirigindo o binário: após mover algumas salas,
+apertar `M` mostrou o grid com `@` na posição atual, `.` nas salas visitadas, e portas conhecidas
+(`-`/`|`) ligando-as — inclusive a porta da sala atual para um vizinho ainda não visitado (revelada
+porque o lado visitado já a conhece, mesmo sem ter cruzado). HUD (vida/energia/dinheiro) idêntico
+antes e depois de ver o mapa. Build limpo e `tests/smoke_test.py` sem crash (alfabeto de fuzzing
+atualizado para incluir `M`/`m`).

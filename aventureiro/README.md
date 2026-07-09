@@ -33,8 +33,56 @@ o resultado final de cada uma:
 aventureiro/
   data/     -> config.json, rooms.json, weapons.json, crew.json (Pacote 1)
   src/      -> código C + cJSON vendorizado (Pacotes 2+)
+  scripts/  -> install-deps.sh (checa/instala dependências de build)
   Makefile
 ```
+
+## Requisitos
+
+- Compilador C (gcc ou clang) e `make`.
+- `pkg-config` e os headers de desenvolvimento do `ncurses`.
+- Python 3 + `pip` (opcional — só para `make test`, que usa `pexpect`).
+
+### Instalação rápida (recomendado)
+
+```
+./scripts/install-deps.sh
+```
+
+Detecta o SO (Linux via `/etc/os-release`, ou macOS) e o gerenciador de pacotes (`apt`, `dnf`,
+`pacman` ou `brew`), mostra o comando de instalação e pede confirmação antes de rodar qualquer
+coisa — não instala nada silenciosamente.
+
+### Instalação manual por SO
+
+**Linux (Debian/Ubuntu e derivados, `apt`):**
+
+```
+sudo apt-get update
+sudo apt-get install -y build-essential pkg-config libncurses-dev python3 python3-pip
+```
+
+**Linux (Fedora/RHEL e derivados, `dnf`):**
+
+```
+sudo dnf install -y gcc make pkgconf-pkg-config ncurses-devel python3 python3-pip
+```
+
+**Linux (Arch e derivados, `pacman`):**
+
+```
+sudo pacman -S --needed base-devel pkgconf ncurses python python-pip
+```
+
+**macOS:**
+
+```
+xcode-select --install          # compilador C, make (Xcode Command Line Tools)
+brew install pkg-config ncurses # pkg-config e headers de ncurses (via Homebrew: https://brew.sh)
+```
+
+**Windows:** sem suporte nativo (o projeto depende de `ncurses`/`pkg-config`/Makefile POSIX) — use o
+[WSL](https://learn.microsoft.com/windows/wsl/) com uma distro Linux e siga as instruções acima.
 
 ## Build e execução
 
@@ -42,7 +90,7 @@ aventureiro/
 make            # compila
 make run        # compila e joga (equivalente a ./build/aventureiro)
 make clean
-make test       # fuzzing automatizado via pexpect (pip install -r tests/requirements.txt)
+make test       # fuzzing automatizado via pexpect (requer python3-pexpect, ver Requisitos acima)
 ```
 
 `./build/aventureiro [--data-dir DIR] [--seed N]` aceita `--data-dir` (default `data`) e `--seed`

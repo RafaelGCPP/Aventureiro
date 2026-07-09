@@ -94,12 +94,23 @@ typedef struct {
     int tripulante_vida_atual; /* copia mutavel de Tripulante::vida (Pacote 6b) - o
                                  * template em BaseDeDados e' compartilhado/imutavel,
                                  * mas o combate precisa acumular dano por sala. */
+    int tripulante_energia_atual; /* energia do tripulante (Pacote 13, linha 6002:
+                                    * "ME=INT(RND*150+100)"), decidida ao sortear o
+                                    * encontro (map.c) e drenada a cada contra-ataque
+                                    * dele - usada em reacao_tripulante_apos_turno
+                                    * (combat.c) pra decidir se ele foge ou ataca. */
 
     bool tem_item;
     bool item_coletado;
 
     bool escura;
     bool conectada[NUM_DIRECOES];
+
+    /* Pacote 14: true assim que o jogador entra na sala (ou nasce nela, no
+     * caso da Sala de Teleporte) - usado so pelo mapa ASCII (ui.c) pra
+     * nao revelar tipo/conteudo de salas nunca visitadas. O original nao
+     * tinha isso (100% textual, sem visualizacao de mapa). */
+    bool visitada;
 } Celula;
 
 /* O labirinto inteiro: grid_size x grid_size celulas, regenerado a cada partida. */

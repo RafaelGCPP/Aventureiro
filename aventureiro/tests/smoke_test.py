@@ -10,12 +10,13 @@ sobreviver ao orcamento de fuzzing sem crashar ja conta como sessao OK.
 O alfabeto de teclas cobre nao so os digitos 0-9 (os dez comandos), mas
 tambem as letras que os sub-prompts interativos de game.c exigem: N/S/L/O
 (direcao do comando Mover), S/I/A (postura do comando Comunicar-se), E/L/D
-(escolha em sala escura do comando Examinar), e H (pseudo-comando de ajuda
-do Pacote 11, que ui_ler_comando aceita a qualquer momento do loop
-principal). Um fuzzer so-digitos travaria deterministicamente na primeira
-vez que sorteasse o comando Mover, ja que esse sub-prompt (fiel ao
-original, linha 1020 do BASIC) ignora qualquer tecla que nao seja uma das
-quatro direcoes e continua esperando.
+(escolha em sala escura do comando Examinar), H (pseudo-comando de ajuda
+do Pacote 11) e M (pseudo-comando de mapa do Pacote 14) - ambos aceitos a
+qualquer momento do loop principal por ui_ler_comando. Um fuzzer so-digitos
+travaria deterministicamente na primeira vez que sorteasse o comando
+Mover, ja que esse sub-prompt (fiel ao original, linha 1020 do BASIC)
+ignora qualquer tecla que nao seja uma das quatro direcoes e continua
+esperando.
 """
 import random
 import sys
@@ -27,7 +28,7 @@ except ImportError:
     print("Faltando 'pexpect'. Rode: pip install -r tests/requirements.txt", file=sys.stderr)
     sys.exit(1)
 
-ALFABETO = "0123456789NnSsLlOoEeDdIiAaHh"
+ALFABETO = "0123456789NnSsLlOoEeDdIiAaHhMm"
 PASSOS_POR_SESSAO = 60
 TOTAL_DE_PASSOS_ALVO = 200
 MAX_SESSOES = 20

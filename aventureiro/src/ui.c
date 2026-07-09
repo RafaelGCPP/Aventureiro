@@ -1,5 +1,6 @@
 #include "ui.h"
 
+#include <locale.h>
 #include <ncurses.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -16,6 +17,19 @@ static WINDOW *janela_hud = NULL;
 static WINDOW *janela_log = NULL;
 
 void ui_iniciar(void) {
+    /*
+     * Sem isso, o ncurses fica preso na locale "C" e conta cada byte de um
+     * caractere UTF-8 multi-byte (ex.: "ã", "ô" - presentes em varios nomes
+     * de arma/sala/tripulante nos JSONs) como se fosse uma coluna inteira
+     * na tela, em vez de saber que 2 bytes formam 1 unico caractere visivel.
+     * O terminal ainda decodifica e desenha o glifo certo, mas a contagem
+     * interna do ncurses (usada pra saber o que redesenhar/apagar a cada
+     * frame) fica errada, deixando sobras de tela ao trocar entre nomes com
+     * quantidades diferentes de acentos (ex.: "Pistola Laser" -> "Arpão
+     * Iônico"). setlocale(LC_ALL, "") usa a locale do ambiente (deve ter
+     * um .UTF-8) e resolve isso na raiz, sem precisar mexer nos dados.
+     */
+    setlocale(LC_ALL, "");
     initscr();
     cbreak();     /* le tecla sem esperar Enter, mas deixa Ctrl-C funcionando (raw() desligaria isso) */
     noecho();     /* nao ecoa a tecla digitada - o jogo controla o que aparece na tela */
@@ -86,6 +100,9 @@ int ui_ler_comando(void) {
         if (tecla == 'h' || tecla == 'H') {
             return -1; /* pseudo-comando de ajuda, Pacote 11 */
         }
+        if (tecla == 'm' || tecla == 'M') {
+            return -2; /* pseudo-comando de mapa, Pacote 14 */
+        }
     } while (tecla < '0' || tecla > '9');
     return tecla - '0';
 }
@@ -102,4 +119,55 @@ int ui_ler_numero(void) {
     noecho();
     curs_set(0);
     return atoi(buf);
+}
+
+void ui_desenhar_mapa(const Mapa *mapa, const Jogador *jogador) {
+    ui_log("Mapa conhecido (salas visitadas):");
+    ui_log(" ");
+
+    for (int linha = 0; linha < mapa->tamanho; linha++) {
+        char salas[MAX_SALAS * 2 + 1];
+        int pos = 0;
+        for (int coluna = 0; coluna < mapa->tamanho; coluna++) {
+            const Celula *celula = &mapa->celulas[linha][coluna];
+            bool eh_teleporte = (linha == mapa->teleporte_linha && coluna == mapa->teleporte_coluna);
+            if (linha == jogador->linha && coluna == jogador->coluna) {
+                salas[pos++] = '@';
+            } else if (eh_teleporte) {
+                salas[pos++] = 'o'; /* pad do teleporte - sempre visitada, e' o inicio da partida */
+            } else if (celula->visitada) {
+                salas[pos++] = '.';
+            } else {
+                salas[pos++] = ' ';
+            }
+
+            if (coluna < mapa->tamanho - 1) {
+                /* Porta Leste/Oeste so aparece se pelo menos um dos dois
+                 * lados ja foi visitado - conectada[] e' simetrico entre
+                 * vizinhos (map.c), entao tanto faz qual lado sabe dela. */
+                bool porta_conhecida = celula->visitada || mapa->celulas[linha][coluna + 1].visitada;
+                salas[pos++] = (porta_conhecida && celula->conectada[LESTE]) ? '-' : ' ';
+            }
+        }
+        salas[pos] = '\0';
+        ui_log("%s", salas);
+
+        if (linha < mapa->tamanho - 1) {
+            char portas[MAX_SALAS * 2 + 1];
+            pos = 0;
+            for (int coluna = 0; coluna < mapa->tamanho; coluna++) {
+                const Celula *celula = &mapa->celulas[linha][coluna];
+                bool porta_conhecida = celula->visitada || mapa->celulas[linha + 1][coluna].visitada;
+                portas[pos++] = (porta_conhecida && celula->conectada[SUL]) ? '|' : ' ';
+                if (coluna < mapa->tamanho - 1) {
+                    portas[pos++] = ' ';
+                }
+            }
+            portas[pos] = '\0';
+            ui_log("%s", portas);
+        }
+    }
+
+    ui_log(" ");
+    ui_log("@ = voce   o = Sala de Teleporte   . = sala visitada   (espaco) = desconhecida");
 }
