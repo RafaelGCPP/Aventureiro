@@ -155,7 +155,11 @@ static void narrar_sala(const Mapa *mapa, const BaseDeDados *bd, int linha, int 
 
     if (celula->tem_tripulante && celula->tripulante_vivo) {
         const Tripulante *tripulante = &bd->tripulantes[celula->id_tripulante];
-        log_msg(r, "Ha alguem aqui: %s. \"%s.\"", tripulante->nome, tripulante->frase);
+        /* Linha 6270 do original: a arma do tripulante ja e' revelada na
+         * apresentacao, antes de qualquer ataque ("...ARMADO COM [arma]..."). */
+        const Arma *arma = &bd->armas[tripulante->id_arma];
+        log_msg(r, "Ha alguem aqui: %s, armado com %s. \"%s.\"", tripulante->nome, arma->nome,
+                tripulante->frase);
     } else {
         log_msg(r, "Nao ha ninguem aqui.");
     }

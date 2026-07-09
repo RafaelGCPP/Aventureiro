@@ -1,10 +1,12 @@
 #include "ui.h"
 
+#include <langinfo.h>
 #include <locale.h>
 #include <ncurses.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /*
  * Altura fixa do HUD (linhas do topo). O log ocupa o resto da tela, numa
@@ -16,20 +18,43 @@
 static WINDOW *janela_hud = NULL;
 static WINDOW *janela_log = NULL;
 
+/*
+ * Pacote 16: setlocale(LC_ALL, "") so' resolve pra UTF-8 se o AMBIENTE ja'
+ * tiver uma locale .UTF-8 exportada (LANG/LC_ALL/LC_CTYPE) - ela nao forca
+ * UTF-8, so' pergunta ao SO qual locale usar. No macOS o terminal quase
+ * sempre ja' exporta algo tipo en_US.UTF-8, entao funciona de primeira. Em
+ * Linux/WSL minimos e' comum a shell nao ter isso setado (ou a imagem nao
+ * ter nenhuma locale UTF-8 gerada), e setlocale cai pra "C" silenciosamente
+ * - sem erro, so' sem UTF-8. Dai' o restante do problema (comentario de
+ * ui_iniciar abaixo) se manifesta: nomes acentuados saem como bytes crus
+ * (ex. "DetenM-CM-'M-CM-#o" em vez de "Detencao"). Se o ambiente falhar,
+ * tenta "C.UTF-8" explicitamente - locale UTF-8 minima que a glibc traz
+ * pronta em praticamente toda distro Linux moderna, sem precisar de
+ * locale-gen nem de nada exportado pelo usuario.
+ */
+static void garantir_locale_utf8(void) {
+    setlocale(LC_ALL, "");
+    const char *codeset = nl_langinfo(CODESET);
+    if (codeset != NULL && strcmp(codeset, "UTF-8") == 0) {
+        return;
+    }
+    setlocale(LC_ALL, "C.UTF-8");
+}
+
 void ui_iniciar(void) {
     /*
-     * Sem isso, o ncurses fica preso na locale "C" e conta cada byte de um
-     * caractere UTF-8 multi-byte (ex.: "ã", "ô" - presentes em varios nomes
-     * de arma/sala/tripulante nos JSONs) como se fosse uma coluna inteira
-     * na tela, em vez de saber que 2 bytes formam 1 unico caractere visivel.
-     * O terminal ainda decodifica e desenha o glifo certo, mas a contagem
-     * interna do ncurses (usada pra saber o que redesenhar/apagar a cada
-     * frame) fica errada, deixando sobras de tela ao trocar entre nomes com
-     * quantidades diferentes de acentos (ex.: "Pistola Laser" -> "Arpão
-     * Iônico"). setlocale(LC_ALL, "") usa a locale do ambiente (deve ter
-     * um .UTF-8) e resolve isso na raiz, sem precisar mexer nos dados.
+     * Sem locale UTF-8, o ncurses fica preso na locale "C" e conta cada
+     * byte de um caractere UTF-8 multi-byte (ex.: "ã", "ô" - presentes em
+     * varios nomes de arma/sala/tripulante nos JSONs) como se fosse uma
+     * coluna inteira na tela, em vez de saber que 2 bytes formam 1 unico
+     * caractere visivel. O terminal ainda decodifica e desenha o glifo
+     * certo, mas a contagem interna do ncurses (usada pra saber o que
+     * redesenhar/apagar a cada frame) fica errada, deixando sobras de tela
+     * ao trocar entre nomes com quantidades diferentes de acentos (ex.:
+     * "Pistola Laser" -> "Arpão Iônico"). garantir_locale_utf8() resolve
+     * isso na raiz, sem precisar mexer nos dados.
      */
-    setlocale(LC_ALL, "");
+    garantir_locale_utf8();
     initscr();
     cbreak();     /* le tecla sem esperar Enter, mas deixa Ctrl-C funcionando (raw() desligaria isso) */
     noecho();     /* nao ecoa a tecla digitada - o jogo controla o que aparece na tela */
