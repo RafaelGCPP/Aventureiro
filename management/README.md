@@ -66,6 +66,7 @@ P0 (scaffold) → P1 (dados JSON) → P2 (types/util) → P3 (data_loader)
 | 21 | [backlog/21-migracao-cmake.md](backlog/21-migracao-cmake.md) | S | P9, P16 | [x] |
 | 22 | [backlog/22-medicamentos-iniciais.md](backlog/22-medicamentos-iniciais.md) | S | P12 | [x] |
 | 23 | [backlog/23-fugir-nao-seguido.md](backlog/23-fugir-nao-seguido.md) | S | P13 | [x] |
+| 24 | [backlog/24-item-sala-nao-marcava-coletado.md](backlog/24-item-sala-nao-marcava-coletado.md) | S | P12 | [x] |
 
 ## Depois do backlog
 

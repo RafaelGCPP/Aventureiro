@@ -504,6 +504,16 @@ Resultado comando_examinar_sala(Jogador *jogador, Mapa *mapa, const Config *cfg,
         return r;
     }
 
+    /* Linhas 5220-5230 do original: "LET X$=R$(D,A,6)" / "LET R$(D,A,6)="
+     * " " - o tipo de item da sala e' lido e IMEDIATAMENTE apagado do
+     * array, antes ate' de decidir a recompensa - reexaminar a mesma sala
+     * depois disso ve R$(D,A,6)=" ", nao bate com nenhum dos tipos P/M/E
+     * e cai direto em "NADA." (linha 5410). Achado/corrigido no Pacote 24:
+     * a porta ja tinha o campo Celula::item_coletado pra isso, mas nada
+     * setava ele pra true - a sala sorteava um item novo toda vez que era
+     * reexaminada, ao inves de uma unica vez. */
+    celula->item_coletado = true;
+
     /*
      * O original (linha 5220 em diante) guarda o tipo de item por sala
      * desde a geracao do mapa (um char P/M/E fixo por sala). O mapa
