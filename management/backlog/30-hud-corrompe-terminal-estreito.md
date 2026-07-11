@@ -1,6 +1,6 @@
-# Pacote 30 — HUD/mensagens em terminal estreito (agora prioritário: Termux é 53×29)
+# Pacote 30 — HUD corrompe em terminal estreito (agora prioritário: Termux é 53×29)
 
-**Tamanho:** M · **Depende de:** [Pacote 7](07-ui.md), [Pacote 26](26-barra-comandos.md)
+**Tamanho:** S/M · **Depende de:** [Pacote 7](07-ui.md), [Pacote 26](26-barra-comandos.md)
 
 ## Objetivo
 
@@ -37,6 +37,15 @@ variante de tudo que existe hoje, e mesmo assim ainda corrompe.
 
 Ou seja: não é mais um edge case a tolerar, é a largura de tela do uso principal em campo.
 
+### Escopo: o que fica de fora
+
+O pacote original incluía também abreviar mensagens de log/narração e nomes de arma/personagem/item
+em terminal estreito. Isso saiu daqui e virou o [Pacote 31](31-mensagens-nomes-abreviados-terminal-estreito.md):
+é uma frente bem maior (~56 pontos de `ui_log`/`Resultado::mensagens` espalhados pelo código, mais
+decidir variantes curtas pra dados que hoje só têm um nome) e não é necessária pra resolver a
+corrupção do HUD em si - só previne um sintoma parecido em outras janelas. Fica pra depois, sem
+bloquear este pacote.
+
 ## Entregáveis
 
 - **Layout de HUD em 3 linhas para terminal estreito**, no mesmo espírito tiered de
@@ -45,11 +54,6 @@ Ou seja: não é mais um edge case a tolerar, é a largura de tela do uso princi
   atuais (`Vida/Energia/Dinheiro` + `Arma/Escudo/Medicamentos`) por 3 linhas mais curtas que cabem sem
   quebra automática do ncurses, ajustando `ALTURA_HUD` dinamicamente (hoje fixo em 4, incluindo
   bordas) e recalculando `altura_disponivel` pro log/mapa em `recriar_janelas`.
-- **Mensagens curtas em modo estreito, incluindo nomes de personagens e objetos**: sob o mesmo
-  limiar, narrações longas em `ui_log`/`Resultado::mensagens` e também nomes de arma/personagem/item
-  exibidos no HUD e no log devem ter variante abreviada (mesma ideia das 3 variantes de
-  `BARRA_COMPLETA`/`BARRA_ABREVIADA`/`BARRA_MINIMA`) em vez de depender do wrap do ncurses, que já
-  causa embaralhamento no HUD e pode fazer o mesmo em qualquer outra janela.
 - **Reintroduzir um comando de mapa em tela cheia** (o antigo pseudo-comando `m`/`M` do Pacote 14,
   removido no Pacote 17 quando o mapa virou painel lateral sempre visível - ver nota em
   [ui.h:55](../../aventureiro/src/ui.h#L55)). Motivo: em terminal estreito o painel lateral
@@ -58,8 +62,8 @@ Ou seja: não é mais um edge case a tolerar, é a largura de tela do uso princi
   sem comando, o jogador fica sem nenhuma forma de ver o mapa. Reativar `M` como fallback quando
   `cabe_painel` for falso (não precisa ser exclusivo do modo estreito por largura de coluna - é o
   mesmo sintoma).
-- Definir e documentar o limiar exato de colunas que ativa o "modo estreito" (HUD 3 linhas + mensagens
-  curtas) - decidir entre 55/60 na sessão, testando com o tamanho real do Termux (53x29).
+- Definir e documentar o limiar exato de colunas que ativa o "modo estreito" (HUD 3 linhas) - decidir
+  entre 55/60 na sessão, testando com o tamanho real do Termux (53x29).
 - Aplicar a mesma decisão em `recriar_janelas` (Pacote 28) pra que isso também não regrida num
   resize que encolha abaixo do limiar.
 - `tests/smoke_test.py`: verificação num terminal estreito (30 cols, o caso original) e em 53x29
@@ -81,14 +85,24 @@ Fora do problema principal, mas como o grid ASCII (`ui_desenhar_mapa`,
   fontes de terminal variam no suporte a esses glifos.
 - Atualizar a legenda (`ui.c:450-452`) com o novo símbolo.
 
+**Resolvido.** `desenhar_grid_mapa` (`ui.c`) agora escreve `·` (U+00B7) pra sala visitada e `×`
+(U+00D7) pra sala com item coletado (checado antes de `visitada`, já que coletar implica visitar);
+ambos UTF-8 de 2 bytes, o buffer `salas[]` foi de `MAX_SALAS*2+1` pra `MAX_SALAS*3+1` pra caber. Legenda
+ganhou a 4ª linha (`× item coletado`), e a checagem de espaço vertical pra mostrar a legenda subiu de
+`linha_janela+4` pra `linha_janela+5`. Verificado manualmente via pexpect+pyte (painel lateral e overlay
+`M` em tela cheia, 100 e 30 colunas, seed 5 coletando 2 itens) - símbolos aparecem centralizados,
+distintos de `@`, sem corromper moldura nenhuma. `tests/smoke_test.py` completo (incluindo o fuzzer, que
+agora passa pelos novos símbolos em várias sementes) rodado sem falha. Não testado num Termux de verdade
+- se `×` não ficar visualmente distinto o bastante de `@` numa fonte específica, a alternativa `✕`
+(U+2715) já estava cogitada e é uma troca de uma linha.
+
 Isso é cosmético e não bloqueia o critério de aceite abaixo - só entra se sobrar tempo na sessão.
 
 ## Critério de aceite
 
 Lançando o jogo (ou redimensionando pra) um terminal mais estreito que o limiar decidido: o HUD muda
-pro layout de 3 linhas sem corromper/sobrepor texto, as mensagens de log (e nomes de arma/item/
-personagem) saem em versão curta, e o mapa continua acessível via comando `M` quando o painel lateral
-não couber. Especificamente em 53x29 (Termux) o HUD fica legível e completo, sem truncar palavras no
-meio. Terminais com largura confortável (painel de mapa cabendo) continuam iguais a hoje, sem `M`
-sendo necessário.
+pro layout de 3 linhas sem corromper/sobrepor texto, e o mapa continua acessível via comando `M`
+quando o painel lateral não couber. Especificamente em 53x29 (Termux) o HUD fica legível e completo,
+sem truncar palavras no meio. Terminais com largura confortável (painel de mapa cabendo) continuam
+iguais a hoje, sem `M` sendo necessário.
 `tests/smoke_test.py` continua passando, incluindo os novos casos (30 cols e 53x29).

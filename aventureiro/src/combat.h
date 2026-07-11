@@ -5,7 +5,28 @@
 
 #include "types.h"
 
-#define MAX_MENSAGENS_RESULTADO 8
+/*
+ * "Entrar em sala nova" com tripulante presente (entrar_em_sala + narrar_sala
+ * em combat.c) sozinho já usa 8 mensagens ("Você entrou numa nova sala." +
+ * "Sala tipo" + "Saídas" + "Há alguém..." + "Há alguma coisa aqui..." +
+ * "TWIN reporta..." + "É um ... armado com ..." + a fala do tripulante).
+ * log_msg() descarta em silêncio qualquer mensagem além do limite (ver
+ * abaixo) - com o valor antigo (8, dimensionado só para esse caso isolado),
+ * qualquer comando que prefixe mensagens próprias antes de entrar_em_sala
+ * já estourava e cortava a revelação do tripulante: comando_fugir quando o
+ * tripulante persegue ("Você fugiu..." + "Infelizmente...veio atrás de
+ * você." = +2, confirmado na prática) e combate_seguir_tripulante_fugido
+ * (+1 mensagem "Você o segue..." por sala percorrida). 16 cobre o pior caso
+ * real de comando_fugir com folga (11) e uma perseguição de até ~7 salas.
+ * Uma trilha de fuga mais longa que isso (o limite teórico e' MAX_TRILHA_
+ * FUGA=64) ainda cortaria a revelação final - log_msg() so' descarta o que
+ * vier DEPOIS do limite, entao nao ha' como a revelação (a ultima mensagem
+ * da sequencia) sobreviver a uma trilha grande o bastante sem aumentar o
+ * buffer na mesma proporção. Aceito como residual: rarissimo num grid 8x8
+ * (a trilha para no primeiro quarto vazio encontrado), e ja' era um limite
+ * pre-existente antes deste pacote, so' que num limiar bem mais baixo.
+ */
+#define MAX_MENSAGENS_RESULTADO 16
 #define MAX_TAMANHO_MENSAGEM 96
 
 /* Tamanho maximo do caminho aleatorio que um tripulante em fuga percorre

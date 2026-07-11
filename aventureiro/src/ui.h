@@ -52,9 +52,14 @@ void ui_desenhar_hud(const Jogador *jogador, const BaseDeDados *bd);
  * aceita 'h'/'H' (retorna -1, pseudo-comando de ajuda, Pacote 11), que o
  * chamador deve tratar sem consumir uma rodada. Teclas fora desse conjunto
  * sao ignoradas silenciosamente - o loop interno so retorna quando le algo
- * valido. (O antigo pseudo-comando de mapa 'm'/'M', Pacote 14, foi removido
- * no Pacote 17 - o mapa agora e' um painel sempre visivel, nao precisa mais
- * ser pedido.)
+ * valido.
+ *
+ * (O pseudo-comando de mapa 'm'/'M', Pacote 14, foi removido no Pacote 17
+ * quando o mapa virou painel lateral sempre visivel, e voltou no Pacote 30 -
+ * retorna -7 - como fallback pra terminal estreito onde o painel nao cabe
+ * (cabe_painel falso, ver ui.c); disponivel sempre, igual 'h'/'H', mesmo em
+ * terminal largo onde e' so' redundante com o painel. O chamador deve tratar
+ * como pseudo-comando tambem, chamando ui_mostrar_mapa_tela_cheia().)
  *
  * As setas do teclado (Pacote 18) sao um atalho pro comando Mover direto
  * numa direcao, pulando o prompt "para que lado": KEY_UP retorna -3
@@ -104,5 +109,16 @@ int ui_ler_numero(void);
  * silencioso.
  */
 void ui_desenhar_mapa(const Mapa *mapa, const Jogador *jogador);
+
+/*
+ * Pacote 30: mostra o mesmo grid de ui_desenhar_mapa em tela cheia, como
+ * overlay temporario - fallback pro pseudo-comando 'm'/'M' (ui_ler_comando,
+ * retorna -7) quando o painel lateral permanente nao cabe no terminal
+ * (cabe_painel falso em recriar_janelas). Bloqueia ate qualquer tecla ser
+ * apertada, depois restaura as janelas permanentes na tela - o chamador nao
+ * precisa fazer nada alem de chamar isto e continuar o loop (nao consome
+ * rodada, mesmo espirito de mostrar_ajuda() em game.c).
+ */
+void ui_mostrar_mapa_tela_cheia(const Mapa *mapa, const Jogador *jogador);
 
 #endif

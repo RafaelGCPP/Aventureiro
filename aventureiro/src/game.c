@@ -156,8 +156,9 @@ static void mostrar_ajuda(void) {
     ui_log(" ");
     ui_log("Extra: a barra na base da tela mostra esse resumo sempre, sem precisar");
     ui_log("apertar H de novo. O mapa das salas visitadas fica sempre visível no");
-    ui_log("painel à direita. As setas do teclado movem direto na direção, sem");
-    ui_log("precisar digitar 0 antes.");
+    ui_log("painel à direita (ou aperte M pra vê-lo em tela cheia, útil se o painel");
+    ui_log("não couber). As setas do teclado movem direto na direção, sem precisar");
+    ui_log("digitar 0 antes.");
 }
 
 FimDeJogo game_loop(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, const Config *cfg) {
@@ -191,6 +192,14 @@ FimDeJogo game_loop(Jogador *jogador, Mapa *mapa, const BaseDeDados *bd, const C
              * ja checam e aplicam resize de terminal (verificar_e_aplicar_
              * resize em ui.c). Deixa o jogador forcar a sincronizacao da
              * tela sem esperar o proximo comando de verdade. */
+            continue;
+        }
+
+        if (comando == -7) {
+            /* 'm'/'M', Pacote 30: pseudo-comando de mapa em tela cheia, nao
+             * consome rodada - fallback pra quando o painel lateral nao
+             * cabe no terminal (ver ui_ler_comando/ui_mostrar_mapa_tela_cheia). */
+            ui_mostrar_mapa_tela_cheia(mapa, jogador);
             continue;
         }
 

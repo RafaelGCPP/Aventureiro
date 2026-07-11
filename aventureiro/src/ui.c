@@ -11,11 +11,35 @@
 #include <unistd.h>
 
 /*
- * Altura fixa do HUD (linhas do topo). O log ocupa o resto da tela, numa
- * janela ncurses separada com scrollok ligado - assim redesenhar o HUD
- * nunca atropela a rolagem do log, e vice-versa.
+ * Altura do HUD (linhas do topo, incluindo borda). O log ocupa o resto da
+ * tela, numa janela ncurses separada com scrollok ligado - assim redesenhar
+ * o HUD nunca atropela a rolagem do log, e vice-versa.
+ *
+ * Pacote 30: o HUD tem 2 variantes de layout - LARGA (2 linhas de conteudo,
+ * o formato classico) e ESTREITA (3 linhas com rotulos abreviados, ver
+ * ui_desenhar_hud). Qual delas cabe depende so' de COLS (ver
+ * LARGURA_HUD_LARGA abaixo), decidido uma vez em recriar_janelas - tanto pra
+ * dimensionar janela_hud quanto pra reservar altura_disponivel pro
+ * log/mapa.
  */
-#define ALTURA_HUD 4
+#define ALTURA_HUD_LARGA 4
+#define ALTURA_HUD_ESTREITA 5
+
+/*
+ * Largura minima pra manter o HUD classico de 2 linhas sem quebrar sozinho.
+ * A segunda linha ("Arma: %-24s  Escudo: %s  Medicamentos: %d") e' a que
+ * manda: com o nome de arma mais longo hoje na base ("Pistola Fotônica", 16
+ * colunas visiveis - o %-24s so' garante um MINIMO de 24, nomes maiores nao
+ * sao truncados), ela ocupa ate 67 colunas visiveis a partir da coluna 2, ou
+ * seja precisa de COLS >= 71 pra nao estourar a janela (COLS - 4 >= 67, os 4
+ * sao a margem esquerda de 2 + a borda/margem direita de 2, mesma conta de
+ * LARGURA_MINIMA_LOG). Isso e' bem mais que os 55/60 cogitados inicialmente
+ * pro limiar - aqueles ainda deixariam terminais de 60-70 colunas
+ * corrompendo o HUD sem que ninguem notasse, ja que o bug so' foi
+ * verificado em 30 e 53 colunas. 72 da uma margem de 1 coluna sobre o pior
+ * caso real sem precisar abreviar nome de arma (isso fica pro Pacote 31).
+ */
+#define LARGURA_HUD_LARGA 72
 
 /*
  * Largura minima reservada pro log (Pacote 17) - abaixo disso o painel de
@@ -74,6 +98,49 @@ static int largura_visivel_utf8(const char *s) {
         }
     }
     return n;
+}
+
+/*
+ * Pacote 31: copia 'origem' pra 'destino' truncando pra no maximo
+ * 'largura_maxima' colunas visiveis (UTF-8-aware, mesma contagem de
+ * largura_visivel_utf8), anexando "…" no lugar do que faltou quando trunca.
+ * Defesa pro campo de nome de arma do HUD (ui_desenhar_hud): MAX_NOME
+ * permite nomes de ate 47 colunas, bem mais do que qualquer nome real hoje
+ * (o mais longo tem 16) - sem isso, um nome de arma futuro mais comprido
+ * estouraria janela_hud (sem scrollok, ao contrario de janela_log) e
+ * reproduziria a mesma corrupcao que o Pacote 30 corrigiu, so' que disparada
+ * por dado em vez de por terminal estreito.
+ */
+static void truncar_visivel_utf8(char *destino, size_t tamanho_destino, const char *origem, int largura_maxima) {
+    if (largura_visivel_utf8(origem) <= largura_maxima || largura_maxima <= 1) {
+        snprintf(destino, tamanho_destino, "%s", origem);
+        return;
+    }
+
+    int largura_alvo = largura_maxima - 1; /* reserva 1 coluna pro "…" */
+    int largura_acumulada = 0;
+    size_t bytes_copiados = 0;
+    for (const unsigned char *p = (const unsigned char *)origem; *p != '\0';) {
+        size_t tamanho_char = 1;
+        if ((*p & 0xE0) == 0xC0) {
+            tamanho_char = 2;
+        } else if ((*p & 0xF0) == 0xE0) {
+            tamanho_char = 3;
+        } else if ((*p & 0xF8) == 0xF0) {
+            tamanho_char = 4;
+        }
+        if (largura_acumulada + 1 > largura_alvo) {
+            break;
+        }
+        largura_acumulada++;
+        bytes_copiados += tamanho_char;
+        p += tamanho_char;
+    }
+    if (bytes_copiados >= tamanho_destino) {
+        bytes_copiados = tamanho_destino - 1;
+    }
+    memcpy(destino, origem, bytes_copiados);
+    snprintf(destino + bytes_copiados, tamanho_destino - bytes_copiados, "…");
 }
 
 static const char *escolher_texto_barra(int largura_disponivel) {
@@ -149,7 +216,8 @@ static void recriar_janelas(int tamanho_mapa) {
     destruir_janelas();
     mapa_tamanho_atual = tamanho_mapa;
 
-    janela_hud = newwin(ALTURA_HUD, COLS, 0, 0);
+    int altura_hud = (COLS < LARGURA_HUD_LARGA) ? ALTURA_HUD_ESTREITA : ALTURA_HUD_LARGA;
+    janela_hud = newwin(altura_hud, COLS, 0, 0);
 
     /*
      * Painel de mapa (Pacote 17): grid de 'tamanho_mapa' salas por lado
@@ -173,21 +241,21 @@ static void recriar_janelas(int tamanho_mapa) {
      * mesma filosofia do painel de mapa logo abaixo.
      */
     const char *texto_barra = escolher_texto_barra(COLS);
-    bool cabe_barra = texto_barra != NULL && (LINES - ALTURA_HUD - ALTURA_BARRA) >= 1;
+    bool cabe_barra = texto_barra != NULL && (LINES - altura_hud - ALTURA_BARRA) >= 1;
     int altura_reservada_barra = cabe_barra ? ALTURA_BARRA : 0;
-    int altura_disponivel = LINES - ALTURA_HUD - altura_reservada_barra;
+    int altura_disponivel = LINES - altura_hud - altura_reservada_barra;
 
     bool cabe_painel = tamanho_mapa > 0 &&
         (COLS - largura_painel) >= LARGURA_MINIMA_LOG &&
         altura_disponivel >= altura_painel;
 
     int largura_log = cabe_painel ? (COLS - largura_painel) : COLS;
-    janela_log = newwin(altura_disponivel, largura_log, ALTURA_HUD, 0);
+    janela_log = newwin(altura_disponivel, largura_log, altura_hud, 0);
     scrollok(janela_log, TRUE);
     keypad(janela_log, TRUE);
 
     if (cabe_painel) {
-        janela_mapa = newwin(altura_disponivel, largura_painel, ALTURA_HUD, largura_log);
+        janela_mapa = newwin(altura_disponivel, largura_painel, altura_hud, largura_log);
     }
 
     if (cabe_barra) {
@@ -247,6 +315,94 @@ void ui_encerrar(void) {
     endwin();
 }
 
+/*
+ * Pacote 31: escreve 'texto' em 'win' quebrando entre palavras na largura
+ * atual da janela, em vez de deixar o ncurses quebrar por coluna (sem nocao
+ * de palavra - corta qualquer palavra, ou nome de arma/personagem/item, que
+ * atravesse a borda direita). janela_log nao tem moldura (ver
+ * desenhar_moldura, nunca chamada nela) nem scrollok limita a largura - so'
+ * a altura -, entao a largura util e' a largura inteira da janela.
+ *
+ * Colapsa espacos internos multiplos pra um so' ao remontar as linhas -
+ * nenhuma chamada de ui_log no jogo depende de espacamento manual pra
+ * alinhar colunas (isso e' so' texto narrativo; alinhamento de campo, tipo
+ * o HUD, usa mvwprintw com padding proprio, nao ui_log). Uma string vazia ou
+ * so' de espacos (usada como linha em branco separadora, ver
+ * game_tela_titulo) ainda produz uma linha em branco - preserva o
+ * espacamento entre paragrafos.
+ *
+ * Uma palavra sozinha mais larga que a janela (pathologico - nao acontece
+ * com o texto atual do jogo) nao e' quebrada aqui; sai na propria linha e
+ * deixa o ncurses fazer o wrap por coluna soh' pra ela, como fallback -
+ * ainda nao corrompe nada (janela_log tem scrollok, ao contrario do HUD do
+ * Pacote 30), so' quebra essa palavra especifica no meio.
+ */
+/*
+ * Escreve 'linha' (largura visivel 'largura_linha') em 'win' e avanca pra
+ * proxima linha - a NAO ser que 'linha' preencha a janela (largura_linha ==
+ * largura_janela) exatamente: nesse caso o proprio ncurses ja fica com o
+ * cursor pendente de quebra automatica (auto-wrap) assim que o proximo
+ * caractere for escrito, e um '\n' explicito aqui duplicaria o avanco,
+ * pulando uma linha em branco - achado ao vivo num terminal de exatamente
+ * 53 colunas (Termux), onde uma das mensagens de examinar sala quebrada
+ * bate ponta a ponta com a largura da janela.
+ */
+static void escrever_linha_com_avanco(WINDOW *win, const char *linha, int largura_linha, int largura_janela) {
+    waddstr(win, linha);
+    if (largura_linha < largura_janela) {
+        wclrtoeol(win); /* ver comentario da funcao chamadora sobre linha reaproveitada */
+        waddch(win, '\n');
+    }
+}
+
+static void escrever_com_quebra_de_palavra(WINDOW *win, const char *texto) {
+    int largura = getmaxx(win);
+    if (largura <= 1) {
+        waddstr(win, texto);
+        waddch(win, '\n');
+        return;
+    }
+
+    char linha_atual[1024] = "";
+    int largura_atual = 0;
+
+    const char *p = texto;
+    while (*p != '\0') {
+        while (*p == ' ') {
+            p++;
+        }
+        const char *inicio_palavra = p;
+        while (*p != '\0' && *p != ' ') {
+            p++;
+        }
+        size_t tamanho_bytes = (size_t)(p - inicio_palavra);
+        if (tamanho_bytes == 0) {
+            break;
+        }
+        char palavra[256];
+        if (tamanho_bytes >= sizeof(palavra)) {
+            tamanho_bytes = sizeof(palavra) - 1;
+        }
+        memcpy(palavra, inicio_palavra, tamanho_bytes);
+        palavra[tamanho_bytes] = '\0';
+        int largura_palavra = largura_visivel_utf8(palavra);
+
+        if (largura_atual > 0 && largura_atual + 1 + largura_palavra > largura) {
+            escrever_linha_com_avanco(win, linha_atual, largura_atual, largura);
+            linha_atual[0] = '\0';
+            largura_atual = 0;
+        }
+        if (largura_atual > 0) {
+            strncat(linha_atual, " ", sizeof(linha_atual) - strlen(linha_atual) - 1);
+            largura_atual += 1;
+        }
+        strncat(linha_atual, palavra, sizeof(linha_atual) - strlen(linha_atual) - 1);
+        largura_atual += largura_palavra;
+    }
+
+    escrever_linha_com_avanco(win, linha_atual, largura_atual, largura);
+}
+
 void ui_log(const char *fmt, ...) {
     char linha[512];
     va_list args;
@@ -254,8 +410,23 @@ void ui_log(const char *fmt, ...) {
     vsnprintf(linha, sizeof(linha), fmt, args);
     va_end(args);
 
-    waddstr(janela_log, linha);
-    waddch(janela_log, '\n');
+    escrever_com_quebra_de_palavra(janela_log, linha);
+
+    /*
+     * redrawwin() antes do refresh: janela_log nao esta ancorada no topo/
+     * base fisico da tela (fica entre o HUD e a barra de comandos), entao
+     * quando ela rola por conta propria (scrollok, ao encher de linhas), o
+     * ncurses otimiza a saida assumindo que a linha recem-exposta pelo
+     * scroll ja esta em branco e nao reenvia o clear-to-EOL - descoberto
+     * testando este pacote: confirmado reproduzindo o problema num programa
+     * ncurses minimo e alimentando os bytes brutos capturados direto num
+     * pyte.Stream isolado (sem pty nenhum envolvido), que mostrou sobra de
+     * texto de escritas bem anteriores (de paragrafos diferentes) vazando
+     * pra dentro de uma linha nova mais curta. redrawwin() descarta toda
+     * informacao de otimizacao da janela e forca reescrita completa no
+     * proximo wrefresh, contornando o problema custe o que custar.
+     */
+    redrawwin(janela_log);
     wrefresh(janela_log);
 }
 
@@ -322,13 +493,39 @@ void ui_desenhar_hud(const Jogador *jogador, const BaseDeDados *bd) {
             nome_arma = bd->armas[id_arma].nome;
         }
     }
+    const char *texto_escudo = jogador->escudo_ligado ? "ligado" : "desligado";
 
-    mvwprintw(janela_hud, 1, 2, "Vida: %-4d  Energia: %-4d  Dinheiro: %-6d",
-              jogador->vida, jogador->energia, jogador->dinheiro);
-    mvwprintw(janela_hud, 2, 2, "Arma: %-24s  Escudo: %s  Medicamentos: %d",
-              nome_arma,
-              jogador->escudo_ligado ? "ligado" : "desligado",
-              jogador->num_medicamentos);
+    /*
+     * Pacote 31: trunca defensivamente pro pior caso da janela mais estreita
+     * que cada variante ainda suporta - 20 cabe em ESTREITA ate 30 colunas
+     * (disponivel 26 - "Arma: " 6 = 20), 24 casa com o padding de LARGA
+     * (%-24s abaixo). Nomes reais de hoje (max 16) nunca sao afetados; ver
+     * truncar_visivel_utf8.
+     */
+    char nome_arma_seguro[MAX_NOME + 4];
+    bool hud_estreito = COLS < LARGURA_HUD_LARGA;
+    truncar_visivel_utf8(nome_arma_seguro, sizeof(nome_arma_seguro), nome_arma, hud_estreito ? 20 : 24);
+
+    if (hud_estreito) {
+        /*
+         * Pacote 30: variante ESTREITA, 3 linhas com rotulos abreviados
+         * (rotulos de campo do HUD sao chrome de UI, nao "mensagem" -
+         * abreviar NOMES de entidade, no log e em qualquer lugar que
+         * dependa do wrap do ncurses, e' o Pacote 31). Cabe ate 30 colunas
+         * com o pior caso real de hoje (nome de arma de 16 colunas,
+         * dinheiro de 6 digitos, "Esc:desligado") - ver conta em
+         * LARGURA_HUD_LARGA.
+         */
+        mvwprintw(janela_hud, 1, 2, "Vida:%d En:%d $:%d",
+                  jogador->vida, jogador->energia, jogador->dinheiro);
+        mvwprintw(janela_hud, 2, 2, "Arma: %s", nome_arma_seguro);
+        mvwprintw(janela_hud, 3, 2, "Esc:%s Med:%d", texto_escudo, jogador->num_medicamentos);
+    } else {
+        mvwprintw(janela_hud, 1, 2, "Vida: %-4d  Energia: %-4d  Dinheiro: %-6d",
+                  jogador->vida, jogador->energia, jogador->dinheiro);
+        mvwprintw(janela_hud, 2, 2, "Arma: %-24s  Escudo: %s  Medicamentos: %d",
+                  nome_arma_seguro, texto_escudo, jogador->num_medicamentos);
+    }
 
     wrefresh(janela_hud);
 }
@@ -344,6 +541,15 @@ int ui_ler_comando(void) {
                                * "redesenhar tela" - forca a checagem de resize do
                                * topo do loop sem esperar o proximo comando real. */
             return -2;
+        }
+        if (tecla == 'm' || tecla == 'M') {
+            /* Pacote 30: reintroduz o pseudo-comando de mapa em tela cheia
+             * (originalmente Pacote 14, removido no 17 quando o painel
+             * lateral virou permanente) como fallback pra quando o painel
+             * nao cabe (terminal estreito) - mas fica disponivel sempre,
+             * igual 'h'/'H', sem checar largura aqui: nao ha' motivo pra
+             * negar a tecla num terminal largo, so' fica redundante la'. */
+            return -7;
         }
         /*
          * Atalho de movimento por seta (Pacote 18): equivalente a "0" + a
@@ -389,20 +595,23 @@ int ui_ler_numero(void) {
     return atoi(buf);
 }
 
-void ui_desenhar_mapa(const Mapa *mapa, const Jogador *jogador) {
-    verificar_e_aplicar_resize();
-
-    if (janela_mapa == NULL) {
-        return; /* terminal pequeno demais pro painel - ver ui_iniciar */
-    }
-
-    werase(janela_mapa);
-    desenhar_moldura(janela_mapa);
-    mvwprintw(janela_mapa, 1, 2, "Mapa");
-
-    int linha_janela = 3;
+/*
+ * Desenha o grid ASCII do mapa (salas/portas/legenda) dentro de 'win', a
+ * partir de 'linha_inicial'. Extraida de ui_desenhar_mapa (Pacote 30) pra
+ * ser reaproveitada tambem por ui_mostrar_mapa_tela_cheia - a janela e' o
+ * unico dado que muda entre painel lateral e overlay de tela cheia, tudo o
+ * resto (o que cada celula representa) e' identico.
+ */
+static void desenhar_grid_mapa(WINDOW *win, int linha_inicial, const Mapa *mapa, const Jogador *jogador) {
+    int linha_janela = linha_inicial;
     for (int linha = 0; linha < mapa->tamanho; linha++) {
-        char salas[MAX_SALAS * 2 + 1];
+        /*
+         * MAX_SALAS*3+1: cada sala ocupa ate 2 bytes agora (· e × sao UTF-8
+         * de 2 bytes, ver abaixo), mais 1 byte de porta Leste/Oeste entre
+         * salas adjacentes, mais o terminador - MAX_SALAS*2 (salas) +
+         * (MAX_SALAS-1) (portas) + 1 cabe em MAX_SALAS*3+1 com folga.
+         */
+        char salas[MAX_SALAS * 3 + 1];
         int pos = 0;
         for (int coluna = 0; coluna < mapa->tamanho; coluna++) {
             const Celula *celula = &mapa->celulas[linha][coluna];
@@ -411,8 +620,21 @@ void ui_desenhar_mapa(const Mapa *mapa, const Jogador *jogador) {
                 salas[pos++] = '@';
             } else if (eh_teleporte) {
                 salas[pos++] = 'o'; /* pad do teleporte - sempre visitada, e' o inicio da partida */
+            } else if (celula->item_coletado) {
+                /* × (U+00D7 MULTIPLICATION SIGN, Pacote 30 sidetrack) - sala
+                 * visitada cujo item ja foi coletado (celula->item_coletado,
+                 * ver combat.c:525). Centralizado no quadrado do caractere,
+                 * diferente da letra latina "x" - se nao ficar distinto o
+                 * bastante de "@" numa fonte de terminal especifica,
+                 * alternativa e' ✕ (U+2715). */
+                memcpy(&salas[pos], "×", 2);
+                pos += 2;
             } else if (celula->visitada) {
-                salas[pos++] = '.';
+                /* · (U+00B7 MIDDLE DOT, Pacote 30 sidetrack) no lugar do
+                 * "." antigo - centralizado verticalmente, glifo padrao com
+                 * bom suporte em fontes monoespacadas de terminal. */
+                memcpy(&salas[pos], "·", 2);
+                pos += 2;
             } else {
                 salas[pos++] = ' ';
             }
@@ -426,7 +648,7 @@ void ui_desenhar_mapa(const Mapa *mapa, const Jogador *jogador) {
             }
         }
         salas[pos] = '\0';
-        mvwprintw(janela_mapa, linha_janela++, 2, "%s", salas);
+        mvwprintw(win, linha_janela++, 2, "%s", salas);
 
         if (linha < mapa->tamanho - 1) {
             char portas[MAX_SALAS * 2 + 1];
@@ -440,17 +662,84 @@ void ui_desenhar_mapa(const Mapa *mapa, const Jogador *jogador) {
                 }
             }
             portas[pos] = '\0';
-            mvwprintw(janela_mapa, linha_janela++, 2, "%s", portas);
+            mvwprintw(win, linha_janela++, 2, "%s", portas);
         }
     }
 
-    /* Legenda so' se sobrar espaco vertical - painel pequeno (grid grande
+    /* Legenda so' se sobrar espaco vertical - janela pequena (grid grande
      * ou terminal raso) prioriza o grid em si, sem legenda. */
-    if (linha_janela + 4 <= getmaxy(janela_mapa)) {
-        mvwprintw(janela_mapa, linha_janela + 1, 2, "@ você");
-        mvwprintw(janela_mapa, linha_janela + 2, 2, "o teleporte");
-        mvwprintw(janela_mapa, linha_janela + 3, 2, ". visitada");
+    if (linha_janela + 5 <= getmaxy(win)) {
+        mvwprintw(win, linha_janela + 1, 2, "@ você");
+        mvwprintw(win, linha_janela + 2, 2, "o teleporte");
+        mvwprintw(win, linha_janela + 3, 2, "· visitada");
+        mvwprintw(win, linha_janela + 4, 2, "× item coletado");
+    }
+}
+
+void ui_desenhar_mapa(const Mapa *mapa, const Jogador *jogador) {
+    verificar_e_aplicar_resize();
+
+    if (janela_mapa == NULL) {
+        return; /* terminal pequeno demais pro painel - ver ui_iniciar */
     }
 
+    werase(janela_mapa);
+    desenhar_moldura(janela_mapa);
+    mvwprintw(janela_mapa, 1, 2, "Mapa");
+    desenhar_grid_mapa(janela_mapa, 3, mapa, jogador);
     wrefresh(janela_mapa);
+}
+
+/*
+ * Pacote 30: mostra o mapa em tela cheia como um overlay temporario -
+ * fallback pra quando o painel lateral permanente (janela_mapa) nao cabe no
+ * terminal (Pacote 17: cabe_painel falso), mas disponivel sempre (ver
+ * ui_ler_comando). Bloqueia ate uma tecla ser apertada, depois fecha o
+ * overlay e forca o redesenho das janelas permanentes - sem isso, o texto
+ * do overlay ficaria "gravado" na tela por baixo delas, ja' que nenhuma das
+ * chamadas de wrefresh seguintes (HUD/mapa no topo do loop) toca as areas de
+ * log/barra que o overlay cobriu.
+ */
+void ui_mostrar_mapa_tela_cheia(const Mapa *mapa, const Jogador *jogador) {
+    WINDOW *overlay = newwin(LINES, COLS, 0, 0);
+    keypad(overlay, TRUE);
+    desenhar_moldura(overlay);
+
+    /*
+     * Titulo com 2 variantes (mesmo espirito de escolher_texto_barra): o
+     * texto completo (43 colunas) estoura a propria moldura do overlay num
+     * terminal de 30 colunas - achado testando manualmente este pacote, o
+     * mesmo tipo de vazamento que o resto do Pacote 30 corrige no HUD,
+     * desta vez no titulo do overlay.
+     */
+    const char *titulo_completo = "Mapa (pressione qualquer tecla para voltar)";
+    const char *titulo_curto = "Mapa (tecla p/ voltar)";
+    int largura_disponivel = COLS - 4;
+    const char *titulo = (largura_visivel_utf8(titulo_completo) <= largura_disponivel)
+                              ? titulo_completo
+                              : (largura_visivel_utf8(titulo_curto) <= largura_disponivel) ? titulo_curto : "Mapa";
+    mvwprintw(overlay, 1, 2, "%s", titulo);
+
+    desenhar_grid_mapa(overlay, 3, mapa, jogador);
+    wrefresh(overlay);
+
+    wgetch(overlay);
+    delwin(overlay);
+
+    if (janela_hud != NULL) {
+        touchwin(janela_hud);
+        wrefresh(janela_hud);
+    }
+    if (janela_mapa != NULL) {
+        touchwin(janela_mapa);
+        wrefresh(janela_mapa);
+    }
+    if (janela_barra != NULL) {
+        touchwin(janela_barra);
+        wrefresh(janela_barra);
+    }
+    if (janela_log != NULL) {
+        touchwin(janela_log);
+        wrefresh(janela_log);
+    }
 }

@@ -10,21 +10,23 @@ sobreviver ao orcamento de fuzzing sem crashar ja conta como sessao OK.
 O alfabeto de teclas cobre nao so os digitos 0-9 (os dez comandos), mas
 tambem as letras que os sub-prompts interativos de game.c exigem: N/S/L/O
 (direcao do comando Mover), S/I/A (postura do comando Comunicar-se), E/L/D
-(escolha em sala escura do comando Examinar) e H (pseudo-comando de ajuda
-do Pacote 11), aceito a qualquer momento do loop principal por
-ui_ler_comando. Um fuzzer so-digitos travaria deterministicamente na
-primeira vez que sorteasse o comando Mover, ja que esse sub-prompt (fiel
-ao original, linha 1020 do BASIC) ignora qualquer tecla que nao seja uma
-das quatro direcoes e continua esperando. (O antigo pseudo-comando de mapa
-'M'/'m' do Pacote 14 foi removido no Pacote 17 - o mapa virou um painel
-sempre visivel, ver verificar_painel_mapa_visivel abaixo.) As sequencias de
-escape das setas (Pacote 18) tambem entram no alfabeto, ver ESCAPE_SETAS.
-Ctrl-L ('\\x0c', Pacote 28 - pseudo-comando -2 que forca resincronizacao de
-tela) tambem entra, sem exigir nenhum resize de verdade pra ser exercitado -
-so' confirma que apertar a tecla sozinha nunca crasha o loop principal.
+(escolha em sala escura do comando Examinar), H (pseudo-comando de ajuda
+do Pacote 11) e M (pseudo-comando de mapa em tela cheia do Pacote 30),
+aceitos a qualquer momento do loop principal por ui_ler_comando. Um fuzzer
+so-digitos travaria deterministicamente na primeira vez que sorteasse o
+comando Mover, ja que esse sub-prompt (fiel ao original, linha 1020 do
+BASIC) ignora qualquer tecla que nao seja uma das quatro direcoes e
+continua esperando. As sequencias de escape das setas (Pacote 18) tambem
+entram no alfabeto, ver ESCAPE_SETAS. Ctrl-L ('\\x0c', Pacote 28 -
+pseudo-comando -2 que forca resincronizacao de tela) tambem entra, sem
+exigir nenhum resize de verdade pra ser exercitado - so' confirma que
+apertar a tecla sozinha nunca crasha o loop principal.
 """
+import json
 import random
+import shutil
 import sys
+import tempfile
 import time
 
 try:
@@ -46,7 +48,7 @@ except ImportError:
 # aplicacao). Mesma TERM usada em todo o resto deste arquivo.
 ESCAPE_SETAS = {"cima": "\x1bOA", "baixo": "\x1bOB", "direita": "\x1bOC", "esquerda": "\x1bOD"}
 
-ALFABETO = list("0123456789NnSsLlOoEeDdIiAaHh") + list(ESCAPE_SETAS.values()) + ["\x0c"]
+ALFABETO = list("0123456789NnSsLlOoEeDdIiAaHhMm") + list(ESCAPE_SETAS.values()) + ["\x0c"]
 PASSOS_POR_SESSAO = 60
 TOTAL_DE_PASSOS_ALVO = 200
 MAX_SESSOES = 20
@@ -91,7 +93,7 @@ def jogar_uma_sessao(binario, seed, passos):
     return child.exitstatus, passos_dados
 
 
-def _sessao_com_tela(binario, seed=1, cols=100, linhas=30):
+def _sessao_com_tela(binario, seed=1, cols=100, linhas=30, extra_args=""):
     """
     Spawna o jogo com um pty de tamanho fixo e devolve (child, conteudo_atual,
     esperar) prontos pra verificacoes de conteudo de tela via pyte. Usado
@@ -115,7 +117,7 @@ def _sessao_com_tela(binario, seed=1, cols=100, linhas=30):
     # esperas pra perto (ou alem) do timeout de cada esperar().
     child = pexpect.spawn(
         "/usr/bin/env",
-        ["bash", "-c", f"stty rows {linhas} cols {cols}; TERM=xterm-256color AVENTUREIRO_SEM_PAUSAS=1 {binario} --seed {seed}"],
+        ["bash", "-c", f"stty rows {linhas} cols {cols}; TERM=xterm-256color AVENTUREIRO_SEM_PAUSAS=1 {binario} --seed {seed} {extra_args}"],
         dimensions=(linhas, cols),
         encoding="utf-8",
         codec_errors="replace",
@@ -171,9 +173,11 @@ def _sessao_com_tela(binario, seed=1, cols=100, linhas=30):
 def verificar_painel_mapa_visivel(binario):
     """
     Verifica com pyte (Pacote 17) que o painel de mapa fica sempre visivel
-    sem precisar de tecla dedicada (o antigo comando 'M' do Pacote 14 foi
-    removido), e que ele se atualiza sozinho ao entrar numa sala nova - a
-    fuzz loop acima so' checa crash, nunca conteudo de tela.
+    sem precisar de tecla dedicada (o comando 'M' do Pacote 14, reintroduzido
+    no Pacote 30 como fallback pra terminal estreito, nao e' necessario
+    aqui - o painel ja aparece sozinho num terminal largo), e que ele se
+    atualiza sozinho ao entrar numa sala nova - a fuzz loop acima so' checa
+    crash, nunca conteudo de tela.
     """
     child, conteudo_atual, esperar, drenar_por, redimensionar = _sessao_com_tela(binario)
 
@@ -287,14 +291,21 @@ def verificar_resize_realinha_painel(binario):
     de data/config.json - se isso mudar, o calculo aqui precisa acompanhar.
     """
     LARGURA_PAINEL_PADRAO = 19
+    LARGURA_HUD_LARGA = 72  # ui.c - abaixo disso o HUD vira ESTREITO (3 linhas, altura 5 em vez de 4)
 
     def coluna_borda_painel(tela_texto):
-        """Acha a coluna do canto superior esquerdo do painel de mapa (linha
-        ALTURA_HUD=4 da tela, ver ui.c) - None se o painel nao esta visivel."""
+        """Acha a coluna do canto superior esquerdo do painel de mapa - None
+        se o painel nao esta visivel. A linha onde o painel comeca depende
+        da altura do HUD (Pacote 30): 4 num terminal largo (HUD classico de
+        2 linhas), 5 num terminal mais estreito que LARGURA_HUD_LARGA (HUD
+        de 3 linhas) - infere qual e' o caso pela largura da propria tela
+        (linha 0 sempre tem COLS colunas)."""
         linhas_tela = tela_texto.split("\n")
-        if len(linhas_tela) <= 4:
+        largura_tela = len(linhas_tela[0])
+        linha_hud = 4 if largura_tela >= LARGURA_HUD_LARGA else 5
+        if len(linhas_tela) <= linha_hud:
             return None
-        indice = linhas_tela[4].find("┌")
+        indice = linhas_tela[linha_hud].find("┌")
         return indice if indice >= 0 else None
 
     child, conteudo_atual, esperar, drenar_por, redimensionar = _sessao_com_tela(binario, cols=100, linhas=30)
@@ -314,8 +325,11 @@ def verificar_resize_realinha_painel(binario):
     # 1. Encolhe a largura (100 -> 70): painel continua cabendo, mas deve
     # encostar numa coluna mais a esquerda (COLS menor); a barra completa (90
     # colunas visiveis) nao cabe mais em 70 e deve cair pra variante
-    # abreviada (ver escolher_texto_barra em ui.c).
-    redimensionar(24, 70)
+    # abreviada (ver escolher_texto_barra em ui.c). 70 < LARGURA_HUD_LARGA
+    # (72), entao o HUD vira ESTREITO (altura 5 em vez de 4, Pacote 30) -
+    # 25 linhas (em vez de 24) pra sobrar a mesma folga de altura_disponivel
+    # que o painel (altura_painel=19) sempre teve nesse teste.
+    redimensionar(25, 70)
     child.send("\x0c")  # Ctrl-L - forca resincronizacao sem esperar comando real
     drenar_por(1.0)
     col = coluna_borda_painel(conteudo_atual())
@@ -412,6 +426,266 @@ def verificar_atalho_setas(binario):
     print("OK: setas do teclado movem direto na direção, sem passar pelo prompt manual (Pacote 18).")
 
 
+def _linha_borda(largura, esquerda, direita):
+    return esquerda + "─" * (largura - 2) + direita
+
+
+def verificar_hud_estreito_nao_corrompe(binario):
+    """
+    Verifica com pyte (Pacote 30) que o HUD muda pro layout de 3 linhas em
+    terminal mais estreito que LARGURA_HUD_LARGA (72 colunas, ver ui.c) sem
+    corromper/sobrepor texto - o bug original (management/backlog/
+    30-hud-corrompe-terminal-estreito.md) fazia o texto de uma linha vazar
+    pra dentro da moldura/linha seguinte. O detector aqui e' a propria borda
+    inferior do HUD (linha ALTURA_HUD_ESTREITA-1, ver ui.c): se qualquer
+    conteudo tivesse vazado por cima dela, a linha nao seria mais um
+    "└──…──┘" limpo. Cobre os dois casos do relato original: 30 colunas (a
+    descoberta inicial) e 53x29 (Termux, o alvo real de uso, ver cabecalho
+    do pacote).
+    """
+    ALTURA_HUD_ESTREITA = 5  # ui.c - 2 bordas + 3 linhas de conteudo
+
+    for cols, linhas, rotulo in ((30, 24, "30 colunas"), (53, 29, "53x29 (Termux)")):
+        child, conteudo_atual, esperar, drenar_por, redimensionar = _sessao_com_tela(binario, cols=cols, linhas=linhas)
+
+        esperar(lambda: "Boa sorte" in conteudo_atual(), f"[{rotulo}] tela de titulo nunca terminou de aparecer")
+        child.send(" ")
+        esperar(lambda: "Vida" in conteudo_atual(), f"[{rotulo}] HUD nunca apareceu")
+        drenar_por(0.3)
+
+        linhas_tela = conteudo_atual().split("\n")
+
+        borda_superior_esperada = _linha_borda(cols, "┌", "┐")
+        if linhas_tela[0] != borda_superior_esperada:
+            print(f"FALHA [{rotulo}]: borda superior do HUD corrompida (esperada "
+                  f"{borda_superior_esperada!r}, achada {linhas_tela[0]!r}):\n{conteudo_atual()}", file=sys.stderr)
+            child.close(force=True)
+            sys.exit(1)
+
+        borda_inferior_esperada = _linha_borda(cols, "└", "┘")
+        linha_borda_inferior = linhas_tela[ALTURA_HUD_ESTREITA - 1]
+        if linha_borda_inferior != borda_inferior_esperada:
+            print(f"FALHA [{rotulo}]: borda inferior do HUD corrompida - texto vazou de uma linha pra "
+                  f"outra (esperada {borda_inferior_esperada!r}, achada {linha_borda_inferior!r}):\n"
+                  f"{conteudo_atual()}", file=sys.stderr)
+            child.close(force=True)
+            sys.exit(1)
+
+        for indice, pedaco in ((1, "Vida"), (2, "Arma"), (3, "Esc")):
+            if pedaco not in linhas_tela[indice]:
+                print(f"FALHA [{rotulo}]: linha {indice} do HUD nao contem '{pedaco}' (layout de 3 "
+                      f"linhas nao aplicado corretamente):\n{conteudo_atual()}", file=sys.stderr)
+                child.close(force=True)
+                sys.exit(1)
+
+        child.close(force=True)
+
+    print("OK: HUD usa layout de 3 linhas sem corromper a moldura em 30 cols e 53x29/Termux (Pacote 30).")
+
+
+def verificar_comando_mapa_tela_cheia(binario):
+    """
+    Verifica com pyte (Pacote 30) que o pseudo-comando 'M'/'m' (retorna -7 em
+    ui_ler_comando) mostra o mapa em tela cheia via
+    ui_mostrar_mapa_tela_cheia() - o fallback pro caso do painel lateral nao
+    caber (cabe_painel falso, aqui forcado usando 30 colunas, bem abaixo de
+    LARGURA_MINIMA_LOG=40 sozinho). Confirma tambem que fechar o overlay (ao
+    apertar qualquer tecla) restaura o HUD corretamente, sem deixar o texto
+    do mapa "gravado" por baixo (ver o touchwin/wrefresh forcado em
+    ui_mostrar_mapa_tela_cheia).
+    """
+    child, conteudo_atual, esperar, drenar_por, redimensionar = _sessao_com_tela(binario, cols=30, linhas=24)
+
+    esperar(lambda: "Boa sorte" in conteudo_atual(), "tela de titulo nunca terminou de aparecer")
+    child.send(" ")
+    esperar(lambda: "Vida" in conteudo_atual(), "HUD nunca apareceu antes do teste do comando M")
+
+    if "Mapa" in conteudo_atual():
+        print(f"FALHA: painel lateral apareceu em 30 colunas (deveria so' caber com M):\n{conteudo_atual()}",
+              file=sys.stderr)
+        child.close(force=True)
+        sys.exit(1)
+
+    child.send("m")
+    esperar(lambda: "você" in conteudo_atual() and "teleporte" in conteudo_atual(),
+            "mapa em tela cheia nao apareceu (ou nao terminou de desenhar) apos apertar M")
+    if "Mapa" not in conteudo_atual():
+        print(f"FALHA: titulo do mapa em tela cheia nao aparece apos M:\n{conteudo_atual()}", file=sys.stderr)
+        child.close(force=True)
+        sys.exit(1)
+
+    child.send(" ")  # qualquer tecla fecha o overlay (wgetch sem filtro)
+    esperar(lambda: "Vida" in conteudo_atual(), "HUD nao voltou apos fechar o mapa em tela cheia")
+    if "Mapa" in conteudo_atual():
+        print(f"FALHA: overlay do mapa continuou na tela apos apertar uma tecla pra fechar:\n{conteudo_atual()}",
+              file=sys.stderr)
+        child.close(force=True)
+        sys.exit(1)
+
+    child.close(force=True)
+    print("OK: comando M mostra o mapa em tela cheia e fecha corretamente em terminal estreito (Pacote 30).")
+
+
+def verificar_log_nao_quebra_palavra_nem_deixa_lixo(binario):
+    """
+    Verifica com pyte (Pacote 31) que a tela de titulo (game_tela_titulo,
+    varios paragrafos longos escritos via ui_log) quebra linha entre
+    palavras em terminal estreito, em vez de deixar o wrap por coluna do
+    ncurses cortar palavras no meio - e que a janela de log, ao rolar
+    (scrollok, mais texto que a altura disponivel), nao deixa sobra de texto
+    de escritas bem anteriores vazando pra dentro de uma linha nova mais
+    curta (bug relacionado mas distinto: achado depurando este pacote,
+    reproduzido isolando os bytes brutos que o ncurses manda num
+    pyte.Stream sem pty nenhum envolvido - ver o comentario de redrawwin()
+    em ui_log, ui.c). Cobre os dois terminais do relato original do Pacote
+    30 (30 cols e 53x29/Termux) comparando contra o wrap correto esperado,
+    calculado a mao pro mesmo texto.
+    """
+    casos = {
+        53: (
+            "ou arma) haverá um gasto nas suas reservas de",
+            "energia. Para terminar o",
+            "jogo você deve retornar à Sala de Teleporte e acionar",
+            "o teleporte (9).",
+        ),
+        30: (
+            "Sempre que você utilizar algum",
+            "dos seus equipamentos",
+            "(lanterna, escudo",
+        ),
+    }
+
+    for cols, linhas_esperadas in casos.items():
+        child, conteudo_atual, esperar, drenar_por, redimensionar = _sessao_com_tela(binario, cols=cols, linhas=29)
+        esperar(lambda: "Boa sorte" in conteudo_atual(), f"[{cols} cols] tela de titulo nunca terminou de aparecer")
+        drenar_por(0.3)
+
+        tela = conteudo_atual()
+        linhas_tela = {l.rstrip() for l in tela.split("\n")}
+        for esperada in linhas_esperadas:
+            if esperada not in linhas_tela:
+                print(f"FALHA [{cols} cols]: linha esperada do wrap correto nao encontrada (quebrou palavra "
+                      f"no meio, ou sobrou lixo de uma escrita anterior colado nela) - {esperada!r}:\n{tela}",
+                      file=sys.stderr)
+                child.close(force=True)
+                sys.exit(1)
+
+        child.close(force=True)
+
+    print("OK: tela de titulo quebra entre palavras (nao no meio) e a janela de log nao deixa lixo "
+          "de escritas anteriores ao rolar, em 30 cols e 53 cols (Pacote 31).")
+
+
+def verificar_quebra_linha_nao_pula_linha_extra(binario):
+    """
+    Verifica com pyte (achado jogando manualmente, relatado pelo usuario)
+    que uma linha quebrada por escrever_com_quebra_de_palavra (ui.c,
+    Pacote 31) nao deixa uma linha em branco extra quando o pedaco quebrado
+    preenche a largura da janela EXATAMENTE. Em 53 colunas (Termux), a
+    mensagem "Que sorte. Existe luz suficiente para examinar a sala sem
+    usar a lanterna." quebra com o primeiro pedaco tendo exatamente 53
+    caracteres visiveis - o ncurses ja deixa o cursor pendente de quebra
+    automatica nesse caso, e um '\\n' explicito duplicava o avanco (ver
+    escrever_linha_com_avanco em ui.c). Sala de Teleporte nunca e' escura
+    (map.c: eh_teleporte pula o sorteio de 'escura', ver gerar_mapa) -
+    examinar ela logo de saida, em qualquer seed, sempre cai nesse
+    caminho, sem depender de sorte.
+    """
+    child, conteudo_atual, esperar, drenar_por, redimensionar = _sessao_com_tela(binario, cols=53, linhas=29)
+    esperar(lambda: "Boa sorte" in conteudo_atual(), "tela de titulo nunca terminou de aparecer")
+    child.send(" ")
+    esperar(lambda: "Vida" in conteudo_atual(), "HUD nunca apareceu")
+
+    child.send("8")  # Examinar - Sala de Teleporte nunca e' escura, cai direto na mensagem de sorte
+    esperar(lambda: "sem usar a lanterna." in conteudo_atual(), "mensagem de sala iluminada nunca apareceu")
+    drenar_por(0.3)
+
+    linhas_tela = [l.rstrip() for l in conteudo_atual().split("\n")]
+    indice_primeira = next((i for i, l in enumerate(linhas_tela) if l.endswith("para examinar a sala")), None)
+    if indice_primeira is None:
+        print(f"FALHA: linha 'Que sorte...para examinar a sala' nao encontrada:\n{conteudo_atual()}",
+              file=sys.stderr)
+        child.close(force=True)
+        sys.exit(1)
+    linha_seguinte = linhas_tela[indice_primeira + 1]
+    if linha_seguinte != "sem usar a lanterna.":
+        print(f"FALHA: linha em branco extra entre as duas metades da mensagem (esperada "
+              f"'sem usar a lanterna.' logo apos, achada {linha_seguinte!r}):\n{conteudo_atual()}",
+              file=sys.stderr)
+        child.close(force=True)
+        sys.exit(1)
+
+    child.close(force=True)
+    print("OK: quebra de linha exatamente do tamanho da janela nao pula linha em branco extra, 53 cols (Pacote 31).")
+
+
+def verificar_nome_arma_longo_trunca_sem_corromper(binario):
+    """
+    Verifica com pyte (Pacote 31) a defesa em profundidade do HUD contra um
+    nome de arma futuro mais longo que o campo suporta (truncar_visivel_utf8
+    em ui.c, ui_desenhar_hud) - MAX_NOME permite ate 47 colunas, bem mais
+    que qualquer nome real hoje (max 16), entao usa um data-dir temporario
+    com a arma inicial (id 2, "Pistola Laser") renomeada bem mais longa que
+    isso, sem tocar em data/weapons.json de verdade. Sem a truncagem, esse
+    nome estouraria janela_hud (sem scrollok) e reproduziria a mesma
+    corrupcao que o Pacote 30 corrigiu, so' que disparada por dado em vez de
+    por terminal estreito.
+    """
+    dir_original = "data"
+    dir_temp = tempfile.mkdtemp(prefix="aventureiro_teste_nome_longo_")
+    try:
+        for arquivo in ("config.json", "rooms.json", "weapons.json", "crew.json"):
+            shutil.copy(f"{dir_original}/{arquivo}", f"{dir_temp}/{arquivo}")
+
+        with open(f"{dir_temp}/weapons.json", encoding="utf-8") as f:
+            dados = json.load(f)
+        nome_longo = "Espingarda de Plasma Ultra Refinadíssima Extra Longa"
+        encontrada = False
+        for arma in dados["armas"]:
+            if arma["id"] == 2:  # arma inicial, ver player.c:jogador_iniciar
+                arma["nome"] = nome_longo
+                encontrada = True
+        if not encontrada:
+            print("FALHA: arma id 2 (esperada 'Pistola Laser', a inicial) nao encontrada em weapons.json - "
+                  "conferir jogador_iniciar em player.c", file=sys.stderr)
+            sys.exit(1)
+        with open(f"{dir_temp}/weapons.json", "w", encoding="utf-8") as f:
+            json.dump(dados, f, ensure_ascii=False)
+
+        ALTURA_HUD_ESTREITA = 5  # ui.c - ambos os terminais deste teste sao mais estreitos que LARGURA_HUD_LARGA
+
+        for cols, linhas in ((53, 29), (30, 24)):
+            child, conteudo_atual, esperar, drenar_por, redimensionar = _sessao_com_tela(
+                binario, cols=cols, linhas=linhas, extra_args=f"--data-dir {dir_temp}")
+            esperar(lambda: "Boa sorte" in conteudo_atual(), f"[{cols} cols] tela de titulo nunca apareceu")
+            child.send(" ")
+            esperar(lambda: "Arma" in conteudo_atual(), f"[{cols} cols] HUD nunca apareceu")
+            drenar_por(0.3)
+
+            tela = conteudo_atual()
+            linhas_tela = tela.split("\n")
+            borda_inferior_esperada = _linha_borda(cols, "└", "┘")
+            linha_borda_inferior = linhas_tela[ALTURA_HUD_ESTREITA - 1]
+            if linha_borda_inferior != borda_inferior_esperada:
+                print(f"FALHA [{cols} cols]: HUD corrompido com nome de arma longo - borda inferior nao "
+                      f"esta limpa (esperada {borda_inferior_esperada!r}, achada {linha_borda_inferior!r}):\n"
+                      f"{tela}", file=sys.stderr)
+                child.close(force=True)
+                sys.exit(1)
+            if "…" not in tela:
+                print(f"FALHA [{cols} cols]: nome de arma longo nao foi truncado (esperava '…' no HUD):\n{tela}",
+                      file=sys.stderr)
+                child.close(force=True)
+                sys.exit(1)
+
+            child.close(force=True)
+    finally:
+        shutil.rmtree(dir_temp, ignore_errors=True)
+
+    print("OK: nome de arma mais longo que o campo do HUD suporta e' truncado com '…' em vez de corromper "
+          "a moldura, em 30 cols e 53 cols (Pacote 31).")
+
+
 def main():
     binario = sys.argv[1] if len(sys.argv) > 1 else "build/aventureiro"
 
@@ -420,6 +694,11 @@ def main():
     verificar_fala_tripulante_nao_trunca(binario)
     verificar_resize_realinha_painel(binario)
     verificar_atalho_setas(binario)
+    verificar_hud_estreito_nao_corrompe(binario)
+    verificar_comando_mapa_tela_cheia(binario)
+    verificar_log_nao_quebra_palavra_nem_deixa_lixo(binario)
+    verificar_nome_arma_longo_trunca_sem_corromper(binario)
+    verificar_quebra_linha_nao_pula_linha_extra(binario)
 
     total_passos = 0
     sessao = 0
