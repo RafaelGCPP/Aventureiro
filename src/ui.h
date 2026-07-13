@@ -15,12 +15,22 @@
  * comando). Chamar uma vez, antes de qualquer outra funcao deste modulo.
  *
  * 'tamanho_mapa' e' o lado do grid (Mapa::tamanho, ja conhecido em main.c
- * antes de ui_iniciar - o mapa e' gerado antes da UI) - usado pra calcular
- * se cabe um painel de mapa permanente (Pacote 17) ao lado do log, dado o
- * tamanho atual do terminal. Se nao couber, ui_desenhar_mapa() vira no-op
- * silencioso em vez de corromper a tela.
+ * antes de ui_iniciar - o mapa e' gerado antes da UI) - guardado pra uso
+ * futuro de ui_habilitar_painel_mapa(), mas o painel de mapa permanente
+ * (Pacote 17) comeca DESATIVADO (Pacote 34): so' reserva as colunas dele ao
+ * lado do log depois que ui_habilitar_painel_mapa() for chamada. Ate la' (a
+ * tela de titulo, tipicamente), o log usa a largura cheia do terminal, ja
+ * que nao ha mapa nenhum pra mostrar antes do jogo comecar de verdade.
  */
 void ui_iniciar(int tamanho_mapa);
+
+/*
+ * Ativa o painel de mapa permanente reservado desde ui_iniciar (Pacote 34) -
+ * chamar uma vez, depois de game_tela_titulo() e antes do primeiro
+ * ui_desenhar_mapa() em game_loop. Recria as janelas com o painel (se
+ * couber no terminal atual, mesma checagem de sempre em recriar_janelas).
+ */
+void ui_habilitar_painel_mapa(void);
 
 /* Restaura o terminal ao estado normal (endwin). Chamar sempre antes de
  * main.c terminar, inclusive em caminhos de erro - senao o shell do

@@ -75,6 +75,17 @@ static int ultima_altura = -1;
 static int ultima_largura = -1;
 
 /*
+ * Pacote 34: false ate ui_habilitar_painel_mapa() ser chamada (main.c, logo
+ * apos game_tela_titulo()). Enquanto falso, cabe_painel (recriar_janelas)
+ * nunca reserva as colunas do painel, mesmo com mapa_tamanho_atual > 0 -
+ * sem isso, ui_iniciar() ja reservava o painel antes da tela de titulo
+ * aparecer, espremendo o log do texto de abertura pra ~61 colunas num
+ * terminal de 80 so' pra deixar espaco em branco (o mapa ainda nao existe
+ * nesse ponto, ui_desenhar_mapa so' e' chamada dentro de game_loop).
+ */
+static bool janela_mapa_habilitada = false;
+
+/*
  * 3 niveis de detalhe pra barra de comandos, do mais legivel pro mais
  * compacto - escolhido conforme a largura do terminal (ui_iniciar), mesmo
  * espirito do painel de mapa (Pacote 17) que soma/some conforme o espaco.
@@ -245,7 +256,7 @@ static void recriar_janelas(int tamanho_mapa) {
     int altura_reservada_barra = cabe_barra ? ALTURA_BARRA : 0;
     int altura_disponivel = LINES - altura_hud - altura_reservada_barra;
 
-    bool cabe_painel = tamanho_mapa > 0 &&
+    bool cabe_painel = janela_mapa_habilitada && tamanho_mapa > 0 &&
         (COLS - largura_painel) >= LARGURA_MINIMA_LOG &&
         altura_disponivel >= altura_painel;
 
@@ -308,6 +319,17 @@ void ui_iniciar(int tamanho_mapa) {
     ultima_altura = LINES;
     ultima_largura = COLS;
     recriar_janelas(tamanho_mapa);
+}
+
+/*
+ * Pacote 34: chamada por main.c depois de game_tela_titulo() (antes de
+ * game_loop) pra so' agora reservar as colunas do painel de mapa - ver
+ * comentario de janela_mapa_habilitada. Recria as janelas com o mesmo
+ * tamanho de mapa ja guardado em mapa_tamanho_atual desde ui_iniciar.
+ */
+void ui_habilitar_painel_mapa(void) {
+    janela_mapa_habilitada = true;
+    recriar_janelas(mapa_tamanho_atual);
 }
 
 void ui_encerrar(void) {

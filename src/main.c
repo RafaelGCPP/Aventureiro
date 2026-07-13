@@ -57,6 +57,7 @@ int main(int argc, char **argv) {
 
     ui_iniciar(mapa.tamanho);
     game_tela_titulo();
+    ui_habilitar_painel_mapa();
     FimDeJogo fim = game_loop(&jogador, &mapa, &bd, &cfg);
     if (fim == JOGO_FIM_MORTE) {
         game_tela_morte();
