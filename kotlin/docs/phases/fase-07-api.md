@@ -1,4 +1,4 @@
-# Handoff — Fase 7: frontend API
+# Brief permanente — Fase 7: frontend API
 
 ## Objetivo
 
@@ -59,7 +59,12 @@ Autenticação pública, banco distribuído, WebSocket e matchmaking.
 
 Contrato publicado, estratégia de distribuição, limites operacionais e decisões de armazenamento.
 
+## Skills sugeridos
+
+- `codebase-design` para DTOs e seam de transporte;
+- `tdd` para rotas, revisão, idempotência e não vazamento;
+- `implement` e `code-review` por ticket.
+
 ## Limite de contexto
 
 Não adicionar complexidade de produção sem requisito: um processo e sessão em memória são suficientes para validar a arquitetura.
-

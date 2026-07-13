@@ -1,4 +1,4 @@
-# Handoff — Fase 9: frontend web client-side only
+# Brief permanente — Fase 9: frontend web client-side only
 
 ## Objetivo
 
@@ -57,7 +57,13 @@ Servidor de jogo, conta, ranking e sincronização.
 
 Formato de distribuição, browsers testados, armazenamento escolhido, tamanho de bundle e limitações offline.
 
+## Skills sugeridos
+
+- `research` para Kotlin/JS ou Wasm/JS e APIs do browser;
+- `prototype` para UI e estratégia offline;
+- `tdd` para composição, save/reload e projeção;
+- `implement` e `code-review` por ticket.
+
 ## Limite de contexto
 
 Não recriar um segundo motor em TypeScript/JavaScript. Interop deve ficar somente nas bordas do browser.
-

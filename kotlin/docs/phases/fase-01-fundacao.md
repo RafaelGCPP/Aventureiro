@@ -1,4 +1,4 @@
-# Handoff — Fase 1: fundação multiplataforma
+# Brief permanente — Fase 1: fundação multiplataforma
 
 ## Objetivo
 
@@ -56,7 +56,13 @@ Modelo completo, dados do jogo, regras, UI e API.
 
 Comandos de build, matriz de targets, estrutura final, bibliotecas aceitas e limitações descobertas.
 
+## Skills sugeridos
+
+- `research` para matriz de versões e suporte oficial dos targets;
+- `prototype` para spikes descartáveis de build, serialização ou RNG;
+- `implement` no ticket aprovado;
+- `code-review` ao final de cada ticket.
+
 ## Limite de contexto
 
 Não modelar o jogo “para aproveitar”. O sucesso é o esqueleto verificável, não volume de classes.
-

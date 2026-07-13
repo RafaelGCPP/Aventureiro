@@ -1,4 +1,4 @@
-# Handoff — Fase 5: aplicação headless
+# Brief permanente — Fase 5: aplicação headless
 
 ## Objetivo
 
@@ -60,7 +60,12 @@ HTTP, terminal, Compose, banco real e autenticação.
 
 Contrato público, exemplos de fluxo, códigos de erro, política de revisão, catálogo de mensagens e composição padrão.
 
+## Skills sugeridos
+
+- `codebase-design` para a porta de aplicação e projeções;
+- `tdd` para sessão, revisão, save e não vazamento;
+- `implement` e `code-review` por ticket.
+
 ## Limite de contexto
 
 Não desenhar DTO pensando só em HTTP nem expor tipos internos por conveniência.
-

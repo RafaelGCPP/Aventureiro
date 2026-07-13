@@ -1,32 +1,38 @@
-# Decisões iniciais e riscos
+# Decisões candidatas, ADRs e riscos
 
-## ADRs iniciais
+## Política de decisão
 
-### ADR-001 — Núcleo Kotlin Multiplatform
+Este arquivo não é o repositório canônico de ADRs. Ele mantém candidatos e riscos da iniciativa Kotlin. Uma decisão só é considerada ADR aceita depois de resolvida com `grill-with-docs`/`domain-modeling` e registrada individualmente em `docs/adr/`.
+
+Quando um ADR for criado, substituir o texto candidato abaixo por um resumo curto, status e link. Decisões reversíveis ou óbvias permanecem neste plano e não ganham um ADR artificial.
+
+## Candidatos a ADR
+
+### Candidato 001 — Núcleo Kotlin Multiplatform
 
 Decisão: domínio, motor e aplicação ficam em código comum. Motivo: mobile e web client-side only precisam executar as regras sem servidor e sem duplicação.
 
-### ADR-002 — Hexagonal e estado unidirecional
+### Candidato 002 — Hexagonal e estado unidirecional
 
 Decisão: o motor é puro no nível da interface, recebendo estado, comando e RNG e devolvendo transição/eventos. I/O e apresentação são adaptadores.
 
-### ADR-003 — IDs estáveis
+### Candidato 003 — IDs estáveis
 
 Decisão: IDs de conteúdo são value objects persistentes; posição em arrays é detalhe de armazenamento. Isso remove a suposição frágil do C de que `id == índice`.
 
-### ADR-004 — Eventos semânticos, não strings
+### Candidato 004 — Eventos semânticos, não strings
 
 Decisão: regras não produzem texto pronto. Localização, quebra de linha e ritmo pertencem à apresentação/aplicação.
 
-### ADR-005 — Repositórios separados
+### Candidato 005 — Repositórios separados
 
 Decisão: conteúdo estático, saves e sessões ativas têm portas distintas. Um `Repository<T>` genérico esconderia semânticas de validação e concorrência diferentes.
 
-### ADR-006 — Compatibilidade comportamental, não RNG binário
+### Candidato 006 — Compatibilidade comportamental, não RNG binário
 
 Decisão: não reproduzir `rand()` da libc. Reproduzir regras, faixas, distribuições e estados, usando um RNG multiplataforma versionado para novos saves.
 
-### ADR-007 — API é frontend
+### Candidato 007 — API é frontend
 
 Decisão: Ktor/JVM hospeda a aplicação headless, mas não define as regras nem o modelo central. Mobile e web podem rodar offline.
 
@@ -53,7 +59,7 @@ Decisão: Ktor/JVM hospeda a aplicação headless, mas não define as regras nem
 | excesso de módulos no início | custo Gradle/token alto | poucas unidades físicas, fronteiras lógicas; extrair quando necessário |
 | Compose web/mobile domina o cronograma | núcleo fica sem validação | frontends só depois do serviço headless estabilizado |
 | biblioteca terminal não cobre Termux/Unicode | perda do frontend de referência | spike limitado na Fase 6 e fallback simples |
-| SQLite vira requisito prematuro | atraso sem validar porta | memória+JSON primeiro; SQLite só na Fase 9 |
+| SQLite vira requisito prematuro | atraso sem validar porta | memória+JSON primeiro; SQLite só na Fase 10 |
 | paridade baseada só no handover antigo | reintrodução de bugs | matriz inclui backlog 21–33 e código atual |
 | eventos proliferam sem taxonomia | contratos instáveis | catálogo de eventos versionado na Fase 5 |
 | API recebe retries concorrentes | comandos duplicados | revisão esperada e idempotency key |
@@ -69,4 +75,3 @@ Não fixar versões neste documento. Na Fase 1, escolher versões compatíveis e
 - ser substituíveis atrás de uma borda pequena.
 
 Ktor é o candidato natural para API JVM; serialização oficial Kotlin é candidata para DTOs; Compose Multiplatform é candidato para mobile/web; SQLDelight é candidato para SQLite multiplataforma. A seleção final exige spike e ADR, não adoção automática.
-

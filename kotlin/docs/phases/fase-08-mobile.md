@@ -1,4 +1,4 @@
-# Handoff — Fase 8: frontend mobile
+# Brief permanente — Fase 8: frontend mobile
 
 ## Objetivo
 
@@ -57,7 +57,13 @@ Conta online, sincronização em nuvem, loja e notificações.
 
 Targets realmente validados, passos de assinatura/distribuição ainda pendentes, formato de save e problemas de compatibilidade.
 
+## Skills sugeridos
+
+- `research` para suporte oficial dos targets e toolkit;
+- `prototype` para fluxos e alternativas de UI;
+- `tdd` para presenter/view-model e lifecycle pelo seam público;
+- `implement` e `code-review` por ticket.
+
 ## Limite de contexto
 
 Priorizar uma experiência completa simples. Animações e design system avançado ficam depois da paridade.
-

@@ -1,4 +1,4 @@
-# Handoff — Fase 6: frontend terminal
+# Brief permanente — Fase 6: frontend terminal
 
 ## Objetivo
 
@@ -59,7 +59,13 @@ Regra de jogo no frontend, API e persistência alternativa.
 
 Procedimento de empacotamento, plataformas testadas, limitações da biblioteca e checklist de regressão visual.
 
+## Skills sugeridos
+
+- `research` para bibliotecas e suporte real de terminal;
+- `prototype` para o spike descartável de Unicode/resize/PTY;
+- `tdd` para input mapper e renderer pelos seams confirmados;
+- `implement` e `code-review` por ticket.
+
 ## Limite de contexto
 
 Não tentar copiar coordenadas ncurses linha a linha. Preservar comportamento e informação, adaptando layout à biblioteca.
-

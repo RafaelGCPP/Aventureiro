@@ -2,15 +2,15 @@
 
 ## Estratégia
 
-O plano maximiza aprendizado cedo e limita contexto por sessão. Primeiro congela-se a especificação, depois prova-se a portabilidade do núcleo, em seguida implementam-se dados e regras. Frontends só começam quando existe uma porta de aplicação estável.
+O plano maximiza aprendizado cedo e limita contexto por ticket. Primeiro congela-se a especificação, depois prova-se a portabilidade do núcleo, em seguida implementam-se dados e regras. Frontends só começam quando existe uma porta de aplicação estável.
 
-Cada fase deve caber em uma sessão assistida por IA de porte pequeno ou médio. Se uma fase ultrapassar seu critério de saída, ela deve ser dividida no relatório da própria fase, sem antecipar trabalho da seguinte.
+Cada fase é um milestone com um gate de saída, não uma sessão. `to-tickets` divide o milestone em tracer bullets verificáveis, cada um dimensionado para uma nova janela de contexto. Uma sessão trabalha somente um ticket da frontier; o brief permanente da fase não é um diário de execução.
 
 ## Visão geral
 
 | Fase | Nome | Tamanho | Depende de | Resultado verificável |
 |---|---|---:|---|---|
-| 0 | Baseline e decisões | S | — | matriz de paridade e ADRs fechados |
+| 0 | Baseline e decisões | S | — | glossário, matriz de paridade, ADRs e spec publicada |
 | 1 | Fundação multiplataforma | M | 0 | build/test JVM+browser e fronteiras vazias |
 | 2 | Conteúdo e repositório JSON | M | 1 | dados atuais carregados e validados por contrato |
 | 3 | Estado, mapa e exploração | M | 2 | mapa determinístico conectado e jogador explorando |
@@ -26,9 +26,9 @@ Após a Fase 5, as fases 6–9 são independentes conceitualmente. Devem continu
 
 ## Fase 0 — Baseline e decisões
 
-Consolidar regras atuais, bugs corrigidos e divergências conhecidas. Produzir matriz comando × pré-condição × mutação × eventos × consumo de turno, inventário de mensagens e ADRs pendentes. Registrar quais constantes ficam no `RuleSet` e escolher targets iniciais.
+Consolidar regras atuais, bugs corrigidos e divergências conhecidas. Usar `grill-with-docs` para resolver uma decisão por vez, mantendo o glossário com `domain-modeling` e criando somente os ADRs que atendam aos critérios de irreversibilidade, surpresa e trade-off real. Produzir matriz comando × pré-condição × mutação × eventos × consumo de turno, inventário de mensagens e cenários golden priorizados.
 
-Saída: nenhuma dúvida sem dono sobre compatibilidade; cenários golden priorizados para as fases 3 e 4.
+Depois das decisões, `to-spec` sintetiza e publica a spec no GitHub Issues com `ready-for-agent`, após confirmação do seam principal de testes. Saída: nenhuma dúvida sem dono sobre compatibilidade, fontes canônicas atualizadas e spec pronta para decomposição.
 
 ## Fase 1 — Fundação multiplataforma
 
@@ -52,7 +52,7 @@ Saída: propriedades do mapa passam em muitas seeds; cenários de exploração s
 
 Implementar ataque/contra-ataque, loot, fuga do jogador, persistência do inimigo, pânico, fuga multi-sala, decisão de seguir, troca de arma e comunicação. Completar eventos e regras de morte/vitória.
 
-Esta é a maior fase; deve ser executada por fatias internas curtas, mantendo um único handoff: combate básico, reação/loot, fuga/perseguição, comunicação e regressões.
+Esta é a maior fase. `to-tickets` deve dividi-la em tracer bullets separados para combate básico, reação/loot, fuga/perseguição, comunicação e regressões, explicitando blockers. Cada ticket termina verde antes de liberar o próximo.
 
 Saída: dez comandos e bugs históricos cobertos por cenários roteirizados; replay idêntico no JVM e browser.
 
@@ -94,15 +94,14 @@ Saída: troca de adaptador por composição, sem mudança no domínio; release c
 
 ## Orçamento racional de contexto
 
-Em cada fase:
+Em cada ticket:
 
-1. ler o handoff correspondente;
-2. abrir somente os documentos/fontes ali listados;
-3. registrar plano de 3–6 passos;
-4. implementar um vertical slice testável;
-5. rodar gates relevantes;
-6. escrever resumo com arquivos, decisões, testes e dívida;
-7. encerrar.
+1. ler `AGENTS.md`, o brief da fase e o corpo completo do ticket;
+2. abrir somente os documentos, ADRs e fontes indicados por eles;
+3. confirmar o seam de teste quando ainda não estiver definido na spec;
+4. implementar um tracer bullet com `tdd` quando houver código;
+5. rodar gates relevantes e executar `code-review` contra o fixed point do ticket;
+6. registrar testes, decisões e dívida no ticket ou commit, sem duplicar os documentos canônicos;
+7. usar `handoff` somente se a sessão terminar com o ticket incompleto.
 
-Evitar reler todo o BASIC, todo o backlog ou todos os frontends. A matriz da Fase 0 e os golden scenarios passam a ser a memória operacional da migração.
-
+Evitar reler todo o BASIC, todo o backlog ou todos os frontends. A matriz da Fase 0, os ADRs e os golden scenarios passam a ser a memória operacional da migração.

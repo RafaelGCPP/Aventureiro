@@ -1,4 +1,4 @@
-# Handoff — Fase 10: repositório alternativo e release
+# Brief permanente — Fase 10: repositório alternativo e release
 
 ## Objetivo
 
@@ -58,7 +58,13 @@ Adicionar novas mecânicas, multiplayer ou infraestrutura cloud.
 
 Produzir um handoff de manutenção contendo versões, comandos, arquitetura real, matriz de testes, formato de dados, migrações e próximos passos. Só então considerar a migração concluída.
 
+## Skills sugeridos
+
+- `research` para o adaptador e empacotamento escolhidos;
+- `codebase-design` para provar que o seam existente não precisa mudar;
+- `tdd` para a suíte de contrato do segundo adaptador;
+- `implement` e `code-review` por ticket.
+
 ## Limite de contexto
 
 Esta fase consolida; não deve virar um novo backlog de features.
-

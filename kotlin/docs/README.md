@@ -15,8 +15,9 @@ Nenhum código Kotlin é definido aqui. Os contratos apresentados são conceitua
 - [02-modelo-de-dados.md](02-modelo-de-dados.md): conteúdo estático, estado de partida, comandos, eventos e persistência.
 - [03-estrategia-de-testes.md](03-estrategia-de-testes.md): paridade, determinismo e pirâmide de testes.
 - [04-plano-faseado.md](04-plano-faseado.md): sequência, dependências e critérios de saída.
-- [05-decisoes-e-riscos.md](05-decisoes-e-riscos.md): ADRs iniciais, riscos e pontos de decisão.
-- [handoffs/README.md](handoffs/README.md): índice dos handoffs autocontidos de cada fase.
+- [05-decisoes-e-riscos.md](05-decisoes-e-riscos.md): decisões candidatas, índice de ADRs e riscos.
+- [06-processo-com-skills.md](06-processo-com-skills.md): fontes canônicas, workflow de skills e unidade de trabalho.
+- [phases/README.md](phases/README.md): índice dos briefs permanentes de cada fase.
 
 ## Resultado arquitetural pretendido
 
@@ -30,5 +31,14 @@ O produto terá um núcleo de jogo headless em Kotlin Multiplatform. Esse núcle
 
 ## Regra para sessões assistidas por IA
 
-Cada fase é uma sessão fechada. Carregar apenas este índice, o handoff da fase e os poucos documentos indicados por ele. Não iniciar a fase seguinte na mesma sessão. Toda fase termina com testes, registro das decisões e atualização do próprio handoff ou de um relatório curto de conclusão.
+Uma fase é um milestone com um gate verificável; um ticket é a unidade que deve caber em uma sessão fechada. Carregar apenas o brief da fase, o ticket atual e os poucos documentos indicados por ambos. Trabalhar um ticket da frontier por vez e não antecipar tickets bloqueados.
 
+Os briefs em `phases/` são permanentes e descrevem intenção, contexto e gate. O skill `handoff` tem outro papel: registrar em diretório temporário o estado de uma sessão interrompida, referenciando os artefatos permanentes sem duplicá-los.
+
+## Fontes canônicas
+
+- `CONTEXT.md`: glossário do domínio, criado de forma lazy por `domain-modeling`.
+- `docs/adr/`: decisões arquiteturais aceitas.
+- `kotlin/docs/`: arquitetura, modelo, estratégia, riscos e milestones duráveis.
+- GitHub Issues: spec executável e tickets com critérios de aceite e dependências.
+- diretório temporário do sistema: handoff de sessão incompleta.

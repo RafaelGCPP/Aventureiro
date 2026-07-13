@@ -1,4 +1,4 @@
-# Handoff — Fase 4: interações e combate
+# Brief permanente — Fase 4: interações e combate
 
 ## Objetivo
 
@@ -57,7 +57,13 @@ Cada fatia termina em testes antes da seguinte.
 
 Catálogo completo de comandos/eventos, estados terminais, decisões pendentes e necessidades de projeção.
 
+## Skills sugeridos
+
+- `to-tickets` antes da implementação para dividir as fatias e blockers;
+- `codebase-design` para preservar um seam pequeno do motor;
+- `tdd` e `implement` em um tracer bullet por vez;
+- `code-review` ao final de cada ticket.
+
 ## Limite de contexto
 
 Não integrar uma UI. Para inspecionar cenários, usar asserts e renderizador de teste mínimo.
-

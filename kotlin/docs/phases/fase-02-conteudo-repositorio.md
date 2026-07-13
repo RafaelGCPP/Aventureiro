@@ -1,4 +1,4 @@
-# Handoff — Fase 2: conteúdo e repositório JSON
+# Brief permanente — Fase 2: conteúdo e repositório JSON
 
 ## Objetivo
 
@@ -59,7 +59,13 @@ Mapa, jogador, save de partida, SQLite/YAML e UI.
 
 Modelo estático, regras validadas, builders de teste e contrato exato da fonte de aleatoriedade.
 
+## Skills sugeridos
+
+- `codebase-design` para o seam do repositório e profundidade do módulo;
+- `tdd` para memória, JSON e validação pelo contrato público;
+- `implement` por ticket;
+- `code-review` ao final de cada ticket.
+
 ## Limite de contexto
 
 Não implementar um framework genérico de persistência. Atender somente o catálogo real e erros necessários.
-

@@ -1,4 +1,4 @@
-# Handoff — Fase 3: estado, mapa e exploração
+# Brief permanente — Fase 3: estado, mapa e exploração
 
 ## Objetivo
 
@@ -60,7 +60,13 @@ Ataque, reação, fuga, comunicação, textos finais e frontends.
 
 Forma de transição, eventos existentes, fixtures de mapa/encontro e quaisquer desvios registrados.
 
+## Skills sugeridos
+
+- `codebase-design` para a interface pública do motor;
+- `domain-modeling` se surgirem termos de jogo ainda ambíguos;
+- `tdd` para tracer bullets e propriedades;
+- `implement` e `code-review` por ticket.
+
 ## Limite de contexto
 
 Não começar combate. Fakes de encontro podem existir apenas para preparar fixtures.
-
